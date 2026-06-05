@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fooseroo – Zähler, Timer &amp; Statistiken für Tischfußball</title>
+  <meta name="description" content="Fooseroo ist die App für Tischfußball-Spieler: Spielstand zählen, Aufschläge und Timeouts verwalten, mit Countdown-Timer trainieren und den Spielverlauf mit Statistiken und Abzeichen verfolgen.">
+  <link rel="icon" type="image/png" href="icon.png">
+  <meta property="og:title" content="Fooseroo – Tischfußball-Zähler, Timer &amp; Statistiken">
+  <meta property="og:description" content="Spielstand zählen, Aufschläge &amp; Timeouts verwalten, ITSF-Timer, Statistiken &amp; Abzeichen – die App für Kicker-Spieler.">
+  <meta property="og:image" content="https://svennickel.github.io/fooseroo/icon.png">
+  <meta property="og:type" content="website">
+  <style>
+    :root {
+      --bg: #0e1a12;
+      --card: #16271c;
+      --accent: #4caf50;
+      --accent-soft: #81c784;
+      --text: #eef5ef;
+      --muted: #a8bfae;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Roboto, system-ui, -apple-system, sans-serif;
+      background: radial-gradient(1200px 600px at 50% -100px, #1d3a26, var(--bg));
+      color: var(--text);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 48px 20px 32px;
+      text-align: center;
+    }
+    .icon {
+      width: 128px; height: 128px;
+      border-radius: 28px;
+      box-shadow: 0 12px 40px rgba(0,0,0,.45);
+    }
+    h1 { font-size: 2.4rem; margin-top: 20px; letter-spacing: .5px; }
+    .tagline { color: var(--accent-soft); font-size: 1.15rem; margin-top: 6px; font-weight: 600; }
+    .desc {
+      color: var(--muted);
+      max-width: 560px;
+      margin-top: 16px;
+      line-height: 1.6;
+      font-size: 1.02rem;
+    }
+    .badge { margin-top: 28px; display: inline-block; }
+    .badge img { height: 72px; }
+    .features {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+      gap: 14px;
+      max-width: 760px;
+      width: 100%;
+      margin-top: 40px;
+    }
+    .feature {
+      background: var(--card);
+      border: 1px solid rgba(255,255,255,.06);
+      border-radius: 16px;
+      padding: 18px 16px;
+      text-align: left;
+    }
+    .feature .emoji { font-size: 1.6rem; }
+    .feature h3 { font-size: 1rem; margin-top: 8px; }
+    .feature p { color: var(--muted); font-size: .9rem; margin-top: 4px; line-height: 1.45; }
+    .share-note {
+      display: none;
+      background: #2c3a1f;
+      border: 1px solid var(--accent);
+      border-radius: 14px;
+      padding: 16px 18px;
+      max-width: 560px;
+      margin-top: 28px;
+      line-height: 1.5;
+      font-size: .95rem;
+    }
+    .share-note.visible { display: block; }
+    .share-note a { color: var(--accent-soft); }
+    footer {
+      margin-top: auto;
+      padding-top: 48px;
+      color: var(--muted);
+      font-size: .82rem;
+    }
+    footer a { color: var(--muted); }
+  </style>
+</head>
+<body>
+  <img class="icon" src="icon.png" alt="Fooseroo App-Icon">
+  <h1>Fooseroo</h1>
+  <p class="tagline">Zähler, Timer &amp; Statistiken für Tischfußball (Kicker)</p>
+  <p class="desc">
+    Fooseroo ist die App für Tischfußball-Spieler: Spielstand zählen, Aufschläge
+    und Timeouts verwalten, mit Countdown-Timer (ITSF&nbsp;10s/15s oder
+    Saarland&nbsp;20s) trainieren und deinen Spielverlauf mit Statistiken und
+    Abzeichen verfolgen.
+  </p>
+
+  <div id="shareNote" class="share-note">
+    🔗 <strong>Geteiltes Spiel:</strong> Dieser Link gehört zu einem in Fooseroo
+    geteilten Spiel. Öffne ihn auf einem Android-Gerät mit installierter
+    Fooseroo-App – sie zeigt dir die Details direkt an.
+  </div>
+
+  <a class="badge" href="https://play.google.com/store/apps/details?id=de.snickel.fooser">
+    <img alt="Jetzt bei Google Play" src="https://play.google.com/intl/de_de/badges/static/images/badges/de_badge_web_generic.png">
+  </a>
+
+  <div class="features">
+    <div class="feature">
+      <span class="emoji">⚽</span>
+      <h3>Spielstand &amp; Aufschläge</h3>
+      <p>Punkte, Sätze, Aufschlagwechsel und Timeouts – alles mit einem Tipp am Tisch.</p>
+    </div>
+    <div class="feature">
+      <span class="emoji">⏱️</span>
+      <h3>Turnier-Timer</h3>
+      <p>Countdown nach ITSF-Regeln (10s/15s) oder Saarland-Modus (20s) – ideal fürs Training.</p>
+    </div>
+    <div class="feature">
+      <span class="emoji">📊</span>
+      <h3>Statistiken &amp; Abzeichen</h3>
+      <p>Verfolge deinen Spielverlauf, sammle Abzeichen und teile Ergebnisse mit Freunden.</p>
+    </div>
+  </div>
+
+  <footer>
+    © Sven Nickel ·
+    <a href="https://play.google.com/store/apps/details?id=de.snickel.fooser">Fooseroo bei Google Play</a>
+  </footer>
+
+  <script>
+    // Share links carry game parameters (e.g. ?spiel=16054). On the web we
+    // can't show the game itself – surface a hint that the link opens in-app.
+    if (new URLSearchParams(location.search).has('spiel')) {
+      document.getElementById('shareNote').classList.add('visible');
+    }
+  </script>
+</body>
+</html>

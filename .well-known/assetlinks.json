@@ -1,0 +1,14 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "de.snickel.fooser",
+      "sha256_cert_fingerprints": [
+        "36:FE:93:ED:89:04:55:01:E2:A8:B9:A8:26:19:24:B7:C9:0E:F9:8D:B2:F3:9D:02:E1:85:5D:AF:0D:0E:73:15",
+        "F3:A4:86:A2:E6:2D:A9:24:C2:D1:6C:D8:23:31:21:6C:97:3A:05:88:23:2E:27:5D:07:B1:86:E2:2C:5A:96:97",
+        "EE:94:B8:6E:6A:D7:DD:AE:D6:AA:1D:46:E2:FE:62:1E:99:0D:A8:4D:2D:CC:6B:DA:16:B1:D1:3F:66:C4:19:18"
+      ]
+    }
+  }
+]
