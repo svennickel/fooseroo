@@ -4,10 +4,12 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Fooseroo – Zähler, Timer &amp; Statistiken für Tischfußball</title>
-  <meta name="description" content="Fooseroo ist die App für Tischfußball-Spieler: Spielstand zählen, Auflagen und Timeouts verwalten, mit Countdown-Timer trainieren und den Spielverlauf mit Statistiken und Abzeichen verfolgen.">
+  <meta name="description" content="Fooseroo ist die App für Tischfußball: Spiele mit Stangen-Countdown pfeifen und archivieren, mit ITSF-Timer trainieren und auswerten, und die Ligen der Verbände in Deutschland mit Tabellen, Begegnungen, Mannschaften und Live-Ticker verfolgen.">
+  <!-- Common names for table football across regions and languages. -->
+  <meta name="keywords" content="Tischfußball, Tischkicker, Kicker, Kickern, Wuzzeln, Wuzzler, Töggele, Töggelen, Töggelichaschte, Krökeln, Kräkeln, Foosball, Table Soccer, Table Football, Babyfoot, Calcio Balilla, Biliardino, Futbolín, Matraquilhos, ITSF, Foosball Counter, Tischfußball-Zähler, Spielstand, Timer, Statistik, Liga">
   <link rel="icon" type="image/png" href="icon.png">
   <meta property="og:title" content="Fooseroo – Tischfußball-Zähler, Timer &amp; Statistiken">
-  <meta property="og:description" content="Spielstand zählen, Auflagen &amp; Timeouts verwalten, ITSF-Timer, Statistiken &amp; Abzeichen – die App für Kicker-Spieler.">
+  <meta property="og:description" content="Spiele zählen, mit ITSF-Timer trainieren und die Ligen der Verbände in Deutschland mit Live-Ticker verfolgen – die App für Tischfußball.">
   <meta property="og:image" content="https://svennickel.github.io/fooseroo/icon.png">
   <meta property="og:type" content="website">
   <style>
@@ -31,6 +33,29 @@
       padding: 48px 20px 32px;
       text-align: center;
     }
+    .lang {
+      position: fixed;
+      top: 14px; right: 14px;
+      display: flex;
+      gap: 4px;
+      background: rgba(0,0,0,.25);
+      border: 1px solid rgba(255,255,255,.12);
+      border-radius: 999px;
+      padding: 3px;
+    }
+    .lang button {
+      border: 0;
+      background: transparent;
+      color: var(--muted);
+      font: inherit;
+      font-size: .8rem;
+      font-weight: 700;
+      letter-spacing: .04em;
+      padding: 5px 11px;
+      border-radius: 999px;
+      cursor: pointer;
+    }
+    .lang button.active { background: var(--accent); color: #08130b; }
     .icon {
       width: 128px; height: 128px;
       border-radius: 28px;
@@ -88,49 +113,102 @@
   </style>
 </head>
 <body>
-  <img class="icon" src="icon.png" alt="Fooseroo App-Icon">
-  <h1>Fooseroo</h1>
-  <p class="tagline">Zähler, Timer &amp; Statistiken für Tischfußball (Kicker)</p>
-  <p class="desc">
-    Fooseroo ist die App für Tischfußball-Spieler: Spielstand zählen, Auflagen
-    und Timeouts verwalten, mit Countdown-Timer (ITSF&nbsp;10s/15s) trainieren
-    und deinen Spielverlauf mit Statistiken und Abzeichen verfolgen.
-  </p>
-
-  <div id="shareNote" class="share-note">
-    🔗 <strong>Geteiltes Spiel:</strong> Dieser Link gehört zu einem in Fooseroo
-    geteilten Spiel. Öffne ihn auf einem Android-Gerät mit installierter
-    Fooseroo-App – sie zeigt dir die Details direkt an.
+  <div class="lang">
+    <button data-lang="de">DE</button>
+    <button data-lang="en">EN</button>
   </div>
 
+  <img class="icon" src="icon.png" alt="Fooseroo App-Icon">
+  <h1>Fooseroo</h1>
+  <p class="tagline" data-i18n="tagline"></p>
+  <p class="desc" data-i18n="desc"></p>
+
+  <div id="shareNote" class="share-note" data-i18n="shareNote"></div>
+
   <a class="badge" href="https://play.google.com/store/apps/details?id=de.snickel.fooser">
-    <img alt="Jetzt bei Google Play" src="https://play.google.com/intl/de_de/badges/static/images/badges/de_badge_web_generic.png">
+    <img id="playBadge" alt="Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
   </a>
 
   <div class="features">
     <div class="feature">
       <span class="emoji">⚪</span>
-      <h3>Spielstand &amp; Auflagen</h3>
-      <p>Punkte, Sätze, Auflagenwechsel und Timeouts – alles mit einem Tipp am Tisch.</p>
+      <h3 data-i18n="f1_title"></h3>
+      <p data-i18n="f1_text"></p>
     </div>
     <div class="feature">
       <span class="emoji">⏱️</span>
-      <h3>Turnier-Timer</h3>
-      <p>Countdown nach ITSF-Regeln (10s/15s) – ideal fürs Training.</p>
+      <h3 data-i18n="f2_title"></h3>
+      <p data-i18n="f2_text"></p>
     </div>
     <div class="feature">
       <span class="emoji">📊</span>
-      <h3>Statistiken &amp; Abzeichen</h3>
-      <p>Verfolge deinen Spielverlauf, sammle Abzeichen und teile Ergebnisse mit Freunden.</p>
+      <h3 data-i18n="f3_title"></h3>
+      <p data-i18n="f3_text"></p>
     </div>
   </div>
 
   <footer>
     © Sven Nickel ·
-    <a href="https://play.google.com/store/apps/details?id=de.snickel.fooser">Fooseroo bei Google Play</a>
+    <a href="https://play.google.com/store/apps/details?id=de.snickel.fooser" data-i18n="footerLink"></a>
   </footer>
 
   <script>
+    const I18N = {
+      de: {
+        _title: "Fooseroo – die Tischfußball-App: Zähler, Timer & Liga",
+        _badge: "https://play.google.com/intl/de_de/badges/static/images/badges/de_badge_web_generic.png",
+        tagline: "Zähler, Timer, Statistiken & Liga für Tischfußball",
+        desc: "Fooseroo ist die App für Tischfußball: Spiele mit Stangen-Countdown pfeifen und archivieren, mit ITSF-Timer (10s/15s) trainieren und pro Person auswerten, und die Ligen der Verbände in Deutschland mit Tabellen, Begegnungen, Mannschaften und Live-Ticker verfolgen.",
+        shareNote: "🔗 <strong>Geteiltes Spiel:</strong> Dieser Link gehört zu einem in Fooseroo geteilten Spiel. Öffne ihn auf einem Android-Gerät mit installierter Fooseroo-App – sie zeigt dir die Details direkt an.",
+        f1_title: "Spiele zählen",
+        f1_text: "Spielstand, Auflagen, Timeouts und Stangen-Countdown – plus Archiv und Teilen als Grafik.",
+        f2_title: "Training",
+        f2_text: "Zeitmessung und Zeitgefühl nach ITSF (10s/15s), mit Tagesauswertung pro Person.",
+        f3_title: "Liga",
+        f3_text: "Tabellen, Begegnungen, Mannschaften und Spieler der Verbände in Deutschland – mit Live-Ticker zum Vorlesen.",
+        footerLink: "Fooseroo bei Google Play"
+      },
+      en: {
+        _title: "Fooseroo – the table football app: counter, timer & league",
+        _badge: "https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png",
+        tagline: "Counter, timer, stats & league for table football",
+        desc: "Fooseroo is the app for table football: referee matches with the rod countdown and archive, train and evaluate with the ITSF timer (10s/15s), and follow the leagues of Germany's federations with standings, fixtures, teams and a live ticker.",
+        shareNote: "🔗 <strong>Shared match:</strong> This link belongs to a match shared from Fooseroo. Open it on an Android device with the Fooseroo app installed – it shows you the details directly.",
+        f1_title: "Score matches",
+        f1_text: "Score, serves, timeouts and the rod countdown – plus an archive and sharing as a graphic.",
+        f2_title: "Training",
+        f2_text: "Time measurement and time feeling by ITSF (10s/15s), with a daily per-player evaluation.",
+        f3_title: "League",
+        f3_text: "Standings, fixtures, teams and players of Germany's federations – with a live ticker that reads aloud.",
+        footerLink: "Fooseroo on Google Play"
+      }
+    };
+
+    function applyLang(lang) {
+      const dict = I18N[lang] || I18N.en;
+      document.documentElement.lang = lang;
+      document.title = dict._title;
+      document.querySelectorAll('[data-i18n]').forEach(function (el) {
+        const k = el.getAttribute('data-i18n');
+        if (dict[k] != null) el.innerHTML = dict[k];
+      });
+      const badge = document.getElementById('playBadge');
+      if (badge) badge.src = dict._badge;
+      document.querySelectorAll('.lang button').forEach(function (b) {
+        b.classList.toggle('active', b.dataset.lang === lang);
+      });
+      try { localStorage.setItem('lang', lang); } catch (e) {}
+    }
+
+    let saved = null;
+    try { saved = localStorage.getItem('lang'); } catch (e) {}
+    const initial = saved || ((navigator.language || 'en').toLowerCase().indexOf('de') === 0 ? 'de' : 'en');
+    applyLang(initial);
+
+    document.querySelectorAll('.lang button').forEach(function (b) {
+      b.addEventListener('click', function () { applyLang(b.dataset.lang); });
+    });
+
     // Share links carry game parameters (e.g. ?spiel=16054). On the web we
     // can't show the game itself – surface a hint that the link opens in-app.
     if (new URLSearchParams(location.search).has('spiel')) {
