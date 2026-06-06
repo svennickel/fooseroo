@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fooseroo</title>
+  <link rel="icon" type="image/png" href="/icon.png">
+  <script>
+    // GitHub Pages has no server-side router, so readable deep-link paths
+    // (e.g. /ntfv/liga/254/saison/21) land here. Forward the path to the
+    // homepage, which shows a hint that the link opens in the Fooseroo app.
+    //
+    // With the app installed and its App Links verified, Android opens these
+    // fooseroo.app URLs directly in the app - this page is never reached.
+    (function () {
+      var path = location.pathname + location.search;
+      location.replace('/?deeplink=' + encodeURIComponent(path));
+    })();
+  </script>
+</head>
+<body></body>
+</html>
