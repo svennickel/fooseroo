@@ -3,7 +3,8 @@
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, type SharedMatch, type Route } from './lib/shared'
-  import { loadPersonalMatches, winnerSide, type MatchItem } from './lib/data'
+  import { loadPersonalMatches, loadPersonalTraining, winnerSide, formatElapsed,
+    type MatchItem, type TrainingItem } from './lib/data'
 
   let route = $state<Route>({ type: 'home' })
   let signedIn = $state(false)
@@ -24,6 +25,10 @@
   // Own (personal) matches list
   let matches = $state<MatchItem[]>([])
   let matchesState = $state<'idle' | 'loading' | 'error'>('idle')
+  let training = $state<TrainingItem[]>([])
+
+  const kindLabel = (k: TrainingItem['kind']) =>
+    k === 'measure' ? 'Zeitmessung' : k === 'measure_success' ? 'Zeit & Erfolg' : 'Erfolgsquote'
 
   const fmtDate = (at: number) =>
     new Date(at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
@@ -51,8 +56,10 @@
       else sharedState = r.status === 'auth' ? 'idle' : r.status
     } else if (route.type === 'home' && signedIn) {
       matchesState = 'loading'
-      try { matches = await loadPersonalMatches(); matchesState = 'idle' }
-      catch { matchesState = 'error' }
+      try {
+        const [m, t] = await Promise.all([loadPersonalMatches(), loadPersonalTraining()])
+        matches = m; training = t; matchesState = 'idle'
+      } catch { matchesState = 'error' }
     }
   }
 
@@ -132,7 +139,33 @@
         {/each}
       </ul>
     {/if}
-    <p class="hint">Training &amp; Live-Ansicht folgen.</p>
+
+    <h2>Dein Training</h2>
+    {#if matchesState === 'loading'}
+      <p class="hint">Lädt…</p>
+    {:else if training.length === 0}
+      <p class="hint">Noch keine Trainingsergebnisse in „Dein Konto".</p>
+    {:else}
+      <ul class="list">
+        {#each training.slice(0, 50) as t}
+          <li class="card trow">
+            <div>
+              <strong>{t.name || '—'}</strong>
+              <span class="meta">{kindLabel(t.kind)}{#if t.mode} · {t.mode}{/if}</span>
+            </div>
+            <div class="tval">
+              {#if t.kind === 'outcome'}
+                <span class={t.success ? 'ok' : 'bad'}>{t.success ? '✓' : '✗'}</span>
+              {:else}
+                {#if t.elapsedMs !== undefined}{formatElapsed(t.elapsedMs)}{/if}
+                {#if t.kind === 'measure_success'}<span class={t.success ? 'ok' : 'bad'}>{t.success ? ' ✓' : ' ✗'}</span>{/if}
+              {/if}
+            </div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    <p class="hint">Live-Ansicht &amp; Erfassung folgen.</p>
 
   {:else}
     <p>Melde dich an, um deine Matches &amp; Trainings (und geteilte Inhalte) hier zu sehen.</p>
@@ -183,4 +216,8 @@
   .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   button.small { padding: 6px 10px; font-size: 13px; }
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .trow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
+  .trow .meta { margin-left: 8px; }
+  .tval { font-weight: 700; white-space: nowrap; }
+  .ok { color: #81c784; } .bad { color: #ff8a80; }
 </style>

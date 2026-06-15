@@ -17,6 +17,22 @@ export function winnerSide(setsHome: number, setsAway: number): 'home' | 'away' 
   return 'tie'
 }
 
+export type TrainingItem = {
+  kind: 'measure' | 'measure_success' | 'outcome'
+  mode: string
+  name: string
+  at: number
+  elapsedMs?: number
+  limitSeconds?: number
+  success?: boolean
+}
+
+// Elapsed milliseconds as a signed "x.xs" string (matches the app's display).
+export function formatElapsed(ms: number): string {
+  const s = ms / 1000
+  return `${s >= 0 ? '' : '-'}${Math.abs(s).toFixed(1)}s`
+}
+
 // dayKey "yyyyMMdd" (local) for grouping a list of matches by day.
 export function dayKey(at: number): string {
   const d = new Date(at)
@@ -47,4 +63,33 @@ export async function loadPersonalMatches(): Promise<MatchItem[]> {
     at: r.created_at ? Date.parse(r.created_at) : 0,
     state: r.state
   }))
+}
+
+// The signed-in user's PERSONAL training entries (group_id null), newest first.
+// kind: "measure" (Zeitmessung), "measure_success" (Zeit & Erfolg), "outcome"
+// (Erfolgsquote). The lean payload lives in data jsonb (name/ts/elapsedMs/limit/
+// success), mirroring CloudTrainingSync.
+export async function loadPersonalTraining(): Promise<TrainingItem[]> {
+  const { data, error } = await supabase
+    .from('training_entries')
+    .select('kind,mode,data,occurred_at,deleted_at,group_id')
+    .is('group_id', null)
+    .is('deleted_at', null)
+    .order('occurred_at', { ascending: false })
+  if (error) throw error
+  type Row = {
+    kind: string; mode: string | null; deleted_at: string | null
+    data: { name?: string; ts?: number; elapsedMs?: number; limit?: number; success?: boolean } | null
+  }
+  return (data ?? [])
+    .filter((r: Row) => r.kind === 'measure' || r.kind === 'measure_success' || r.kind === 'outcome')
+    .map((r: Row) => ({
+      kind: r.kind as TrainingItem['kind'],
+      mode: r.mode ?? '',
+      name: r.data?.name ?? '',
+      at: r.data?.ts ?? 0,
+      elapsedMs: r.data?.elapsedMs,
+      limitSeconds: r.data?.limit,
+      success: r.data?.success
+    }))
 }
