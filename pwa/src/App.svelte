@@ -6,6 +6,7 @@
   import { loadMatches, loadTraining, loadGroups, loadGroupRetention, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows } from './lib/match'
+  import { encodeMatch } from './lib/share'
   import MatchProgress from './lib/MatchProgress.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
@@ -98,14 +99,40 @@
   const view = $derived(selected ? parseMatchState(selected.state, selected.running) : null)
   const progress = $derived(view ? progressRows(view, !!selected?.running) : null)
 
+  // Match-detail URL: a group match gets the shareable token PATH
+  // (fooseroo.app/m/<token>) — the same link the app opens (App Links), and a
+  // reload restores the detail (the root 404 page forwards /m/<token> back in).
+  let appBase = '/'
+  const shareBase = () => appBase.replace(/app\/?$/, '')
+  function setMatchUrl(token: string) {
+    try { history.replaceState(null, '', `${shareBase()}m/${token}`) } catch { /* noop */ }
+  }
+  function writeHomeUrl() {
+    const q = new URLSearchParams()
+    q.set('tab', tab)
+    if (ctx) q.set('ctx', ctx)
+    if (catFilter) q.set('cat', catFilter)
+    if (dayFilter) q.set('day', dayFilter)
+    try { history.replaceState(null, '', `${appBase}?${q.toString()}`) } catch { /* noop */ }
+  }
+
   function openMatch(m: MatchItem) {
     selected = m
     stopPoll(); stopListPoll()
+    // Group matches are shareable → reflect the token in the URL so the link opens
+    // the app and a reload keeps showing this detail. (Personal matches have no
+    // shareable identity, so their URL stays the home URL.)
+    if (ctx) setMatchUrl(encodeMatch(ctx, m.at))
     // Always poll while the detail is open, so a change or a switch to LIVE is
     // picked up even if the match wasn't running when opened (faster while live).
     pollTimer = setInterval(refreshSelected, m.running ? 3000 : 6000)
   }
-  function closeMatch() { stopPoll(); selected = null; startListPoll() }
+  function closeMatch() {
+    stopPoll(); selected = null
+    route = { type: 'home' }
+    writeHomeUrl()
+    startListPoll()
+  }
 
   // While the list is open (signed-in home, no detail), poll so new/changed/live
   // matches appear without a manual reload.
@@ -141,6 +168,7 @@
     : 'Beitritt fehlgeschlagen – bitte erneut versuchen.'
 
   onMount(() => {
+    appBase = location.pathname.replace(/[^/]*$/, '')   // e.g. "/app/" (SPA base)
     route = parseRoute(location.hash)
     if (route.type === 'join') joinCode = route.code
     // Restore the last selection (tab / context / category); URL params override.
@@ -195,20 +223,38 @@
   $effect(() => {
     const t = tab, c = ctx, cat = catFilter, day = dayFilter
     persist()
+    // While a match detail (or the join view) is shown, its own URL is in charge —
+    // don't overwrite it with the home/list URL.
+    if (selected || route.type === 'match' || route.type === 'join') return
     const q = new URLSearchParams()
     q.set('tab', t)
     if (c) q.set('ctx', c)
     if (cat) q.set('cat', cat)
     if (day) q.set('day', day)
-    history.replaceState(null, '', `${location.pathname}?${q.toString()}${location.hash}`)
+    history.replaceState(null, '', `${appBase}?${q.toString()}`)
   })
 
   async function maybeResolve() {
     if (route.type === 'match' && signedIn) {
       sharedState = 'loading'; shared = null
       const r = await resolveSharedMatch(route.token)
-      if (r.status === 'ok') { shared = r.data; sharedState = 'idle' }
-      else sharedState = r.status === 'auth' ? 'idle' : r.status
+      if (r.status === 'ok') {
+        shared = r.data; sharedState = 'idle'
+        // Open the FULL detail (same rich view as tapping a card), normalize the
+        // URL to the clean token path, and load the group's list so "Zurück" lands
+        // on it. Poll if the match is live.
+        ctx = r.data.groupId
+        selected = {
+          homeName: r.data.homeName, awayName: r.data.awayName,
+          setsHome: r.data.setsHome, setsAway: r.data.setsAway,
+          category: r.data.category, at: r.data.at, state: r.data.state, running: r.data.running
+        }
+        setMatchUrl(route.token)
+        stopPoll(); stopListPoll()
+        if (r.data.running) pollTimer = setInterval(refreshSelected, 3000)
+        if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
+        reloadData(true)
+      } else sharedState = r.status === 'auth' ? 'idle' : r.status
     } else if (route.type === 'home' && signedIn) {
       if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
       await reloadData()

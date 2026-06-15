@@ -8,6 +8,10 @@ export type SharedMatch = {
   setsAway: number
   state: unknown
   groupName: string
+  groupId: string
+  category: string | null
+  at: number       // created_at epoch ms
+  running: boolean
 }
 
 export type Resolution<T> =
@@ -31,7 +35,7 @@ export async function resolveSharedMatch(token: string): Promise<Resolution<Shar
     if (!g) return { status: 'notfound' }
     const { data: rows, error: mErr } = await supabase
       .from('matches')
-      .select('home_name,away_name,sets_home,sets_away,state,created_at,deleted_at')
+      .select('home_name,away_name,sets_home,sets_away,category,running,state,created_at,deleted_at')
       .eq('group_id', g.id)
     if (mErr) return { status: 'error' }
     const row = (rows ?? []).find(
@@ -49,7 +53,11 @@ export async function resolveSharedMatch(token: string): Promise<Resolution<Shar
         setsHome: row.sets_home ?? 0,
         setsAway: row.sets_away ?? 0,
         state: row.state,
-        groupName: (g as { name?: string }).name ?? ''
+        groupName: (g as { name?: string }).name ?? '',
+        groupId: g.id,
+        category: row.category ?? null,
+        at: row.created_at ? Date.parse(row.created_at) : 0,
+        running: row.running ?? false
       }
     }
   } catch {
