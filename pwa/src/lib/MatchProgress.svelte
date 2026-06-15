@@ -412,6 +412,7 @@
 
   onMount(() => {
     mounted = true
+    layer = document.createElement('canvas')   // offscreen axis layer (edge fades)
     reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     resolveColors(); sync()
     const ro = new ResizeObserver(() => { sync(); schedule() })

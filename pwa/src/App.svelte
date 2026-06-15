@@ -7,6 +7,8 @@
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows } from './lib/match'
   import MatchProgress from './lib/MatchProgress.svelte'
+  import { flip } from 'svelte/animate'
+  import { fade } from 'svelte/transition'
 
   let route = $state<Route>({ type: 'home' })
   let signedIn = $state(false)
@@ -111,7 +113,9 @@
   function startListPoll() {
     stopListPoll()
     if (signedIn && route.type === 'home' && !selected)
-      listTimer = setInterval(() => { if (!selected) reloadData() }, 6000)
+      // Silent refresh: update in place without the loading flash, so the list
+      // doesn't flicker — only changed rows re-render (keyed + animated below).
+      listTimer = setInterval(() => { if (!selected) reloadData(true) }, 6000)
   }
   function stopListPoll() { if (listTimer) { clearInterval(listTimer); listTimer = null } }
   function stopPoll() { if (pollTimer) { clearInterval(pollTimer); pollTimer = null } }
@@ -211,8 +215,10 @@
     }
   }
 
-  async function reloadData() {
-    matchesState = 'loading'
+  // silent = background poll: don't flash the loading state (avoids flicker); the
+  // list updates in place and only changed rows re-render (keyed + animated).
+  async function reloadData(silent = false) {
+    if (!silent) matchesState = 'loading'
     try {
       const [m, t] = await Promise.all([loadMatches(ctx), loadTraining(ctx)])
       matches = m; training = t; matchesState = 'idle'
@@ -220,16 +226,27 @@
       // current day is still valid (e.g. from the URL or a manual pick this session).
       const mdays = [...new Set(m.map((x) => dayOf(x.at)))]
       if (!dayFilter || !mdays.includes(dayFilter)) dayFilter = newestMatchDay(m)
-      // Drop a stale saved category that no longer exists in this context.
+      // A category is always selected (like the app — no "all categories"). Keep a
+      // valid saved/URL pick, else default to the newest match's category.
       const cats = m.map((x) => x.category).filter(Boolean) as string[]
-      if (catFilter && !cats.includes(catFilter)) catFilter = ''
+      if (!catFilter || !cats.includes(catFilter))
+        catFilter = (m.find((x) => x.category)?.category) ?? cats[0] ?? ''
       startListPoll()
       // Result-retention notice for the active group (best-effort, non-blocking).
       if (ctx) loadGroupRetention(ctx).then((r) => { retention = r }).catch(() => {})
       else retention = null
-    } catch { matchesState = 'error' }
+    } catch { if (!silent) matchesState = 'error' }
   }
   function changeCtx(v: Ctx) { ctx = v; catFilter = ''; dayFilter = ''; selected = null; retention = null; reloadData() }
+
+  // Leave the join view and return to the home list (works whether the join view
+  // was opened via the in-app button or a #/g/<code> deep link).
+  function goHome() {
+    joinError = ''; joinCode = ''; pendingJoinCode = ''
+    route = { type: 'home' }
+    try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
+    maybeResolve()
+  }
 
   // Join a training group by its short code (server-throttled). Requires sign-in;
   // if signed out, remembers the code and retries right after authentication.
@@ -337,7 +354,7 @@
     {#if !signedIn}
       <p class="hint">Melde dich an, um {#if joinCode}der Gruppe beizutreten (Code {joinCode}){:else}einer Gruppe beizutreten{/if}.</p>
       {@render authForm()}
-      <a class="ghost-link" href="#/">Abbrechen</a>
+      <button class="ghost small" onclick={goHome}>Abbrechen</button>
     {:else}
       <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
       <input bind:value={joinCode} placeholder="Code (z. B. K7QF-3MZP)" autocomplete="off"
@@ -346,7 +363,7 @@
         {joinBusy ? 'Trete bei…' : 'Beitreten'}
       </button>
       {#if joinError && joinError !== 'auth'}<p class="err">{joinErrorText(joinError)}</p>{/if}
-      <a class="ghost-link" href="#/">Abbrechen</a>
+      <button class="ghost small" onclick={goHome}>Abbrechen</button>
     {/if}
 
   {:else if signedIn}
@@ -370,7 +387,6 @@
       </select>
       {#if tab === 'matches'}
         <select bind:value={catFilter}>
-          <option value="">Alle Kategorien</option>
           {#each categories as c}<option value={c}>{c}</option>{/each}
         </select>
       {/if}
@@ -393,10 +409,10 @@
         <p class="hint">Keine Matches{#if catFilter || dayFilter} mit dieser Auswahl{/if} – erfasse welche in der App.</p>
       {:else}
         <ul class="list">
-          {#each shownMatches as m}
+          {#each shownMatches as m (m.at)}
             {@const w = winnerSide(m.setsHome, m.setsAway)}
             {@const mv = parseMatchState(m.state, m.running)}
-            <li>
+            <li animate:flip={{ duration: 220 }} in:fade={{ duration: 160 }}>
               <button class="card card-btn" onclick={() => openMatch(m)}>
                 {#if m.running}<div class="live"><span class="dot"></span> LIVE</div>{/if}
                 <div class="score">
