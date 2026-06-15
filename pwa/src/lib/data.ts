@@ -9,6 +9,23 @@ export async function loadGroups(): Promise<Group[]> {
   return (data ?? []).map((g: { id: string; name: string | null }) => ({ id: g.id, name: g.name ?? '—' }))
 }
 
+// Optional result retention of a group (null = off / not set). Best-effort: if the
+// backend doesn't have the retention columns yet, this resolves to null (the notice
+// simply stays hidden) so the web app never breaks ahead of the migration.
+export type Retention = { days: number; tz: string }
+export async function loadGroupRetention(groupId: string): Promise<Retention | null> {
+  try {
+    const { data, error } = await supabase
+      .from('groups').select('retention_days,retention_tz').eq('id', groupId).maybeSingle()
+    if (error || !data) return null
+    const r = data as { retention_days: number | null; retention_tz: string | null }
+    if (r.retention_days == null) return null
+    return { days: r.retention_days, tz: r.retention_tz ?? 'UTC' }
+  } catch {
+    return null
+  }
+}
+
 // A data context: null = "Dein Konto" (personal, group_id null), else a group id.
 export type Ctx = string | null
 const ctxFilter = (q: any, ctx: Ctx) => (ctx == null ? q.is('group_id', null) : q.eq('group_id', ctx))

@@ -18,6 +18,12 @@
         location.replace('/app/#/' + share[1] + '/' + share[2]);
         return;
       }
+      // Training-group join links (/g/<CODE>) open the web version's join flow.
+      var join = location.pathname.match(/^\/g\/([0-9A-Za-z-]+)\/?$/);
+      if (join) {
+        location.replace('/app/#/g/' + join[1]);
+        return;
+      }
       location.replace('/?deeplink=' + encodeURIComponent(location.pathname + location.search));
     })();
   </script>

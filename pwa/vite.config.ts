@@ -14,15 +14,17 @@ export default defineConfig({
       registerType: 'autoUpdate',
       includeAssets: ['icon.png'],
       manifest: {
-        name: 'Fooseroo',
-        short_name: 'Fooseroo',
+        // Launcher name differs from the Play Store app ("Fooseroo") so the
+        // installed PWA is distinguishable on the home screen.
+        name: 'Fooseroo Web',
+        short_name: 'Fooseroo Web',
         description: 'Matches & Training: Tischfußball mitzählen, auswerten, live mitverfolgen.',
         lang: 'de',
         start_url: './',
         scope: './',
         display: 'standalone',
-        background_color: '#0e1a12',
-        theme_color: '#0e1a12',
+        background_color: '#E8F0FB',
+        theme_color: '#1565C0',
         icons: [{ src: 'icon.png', sizes: '512x512', type: 'image/png', purpose: 'any maskable' }]
       },
       workbox: { navigateFallback: 'index.html' }

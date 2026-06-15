@@ -2,9 +2,9 @@
   import { onMount } from 'svelte'
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
-  import { parseRoute, resolveSharedMatch, type SharedMatch, type Route } from './lib/shared'
-  import { loadMatches, loadTraining, loadGroups, winnerSide, formatElapsed,
-    type MatchItem, type TrainingItem, type Group, type Ctx } from './lib/data'
+  import { parseRoute, resolveSharedMatch, joinWithCode, type SharedMatch, type Route } from './lib/shared'
+  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, winnerSide, formatElapsed,
+    type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows } from './lib/match'
   import MatchProgress from './lib/MatchProgress.svelte'
 
@@ -32,6 +32,31 @@
   // Context (Dein Konto / a group), category + day filters — like the app.
   let groups = $state<Group[]>([])
   let ctx = $state<Ctx>(null)
+  // Result-retention of the active group (null = off / personal context).
+  let retention = $state<Retention | null>(null)
+  // Join-a-group-by-code flow.
+  let joinCode = $state('')
+  let joinBusy = $state(false)
+  let joinError = $state<'' | 'auth' | 'invalid' | 'throttled' | 'full' | 'error'>('')
+  let pendingJoinCode = ''
+
+  // "Install as app" hint (Android/Chrome via beforeinstallprompt; iOS Safari is
+  // manual, since it has no such event). Hidden once installed or dismissed.
+  let showInstall = $state(false)
+  let canInstall = $state(false)
+  let installIOS = $state(false)
+  let deferredPrompt: { prompt: () => void; userChoice: Promise<unknown> } | null = null
+  const isStandalone = () =>
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (navigator as unknown as { standalone?: boolean }).standalone === true
+  const installDismissed = () => { try { return localStorage.getItem('fs_install') === 'no' } catch { return false } }
+  function dismissInstall() { showInstall = false; try { localStorage.setItem('fs_install', 'no') } catch { /* noop */ } }
+  async function doInstall() {
+    if (!deferredPrompt) return
+    deferredPrompt.prompt()
+    try { await deferredPrompt.userChoice } catch { /* noop */ }
+    deferredPrompt = null; canInstall = false; showInstall = false
+  }
   let catFilter = $state<string>('')  // '' = all categories
   let dayFilter = $state<string>('')  // '' = all days; else a yyyy-mm-dd-ish key
   const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
@@ -105,8 +130,15 @@
   const fmtDate = (at: number) =>
     new Date(at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
 
+  const joinErrorText = (e: string) =>
+    e === 'invalid' ? 'Code ungültig, deaktiviert oder abgelaufen.'
+    : e === 'throttled' ? 'Zu viele Versuche – bitte später erneut.'
+    : e === 'full' ? 'Diese Gruppe ist voll.'
+    : 'Beitritt fehlgeschlagen – bitte erneut versuchen.'
+
   onMount(() => {
     route = parseRoute(location.hash)
+    if (route.type === 'join') joinCode = route.code
     // Restore the last selection (tab / context / category); URL params override.
     const saved = restore()
     if (saved.tab === 'training' || saved.tab === 'matches') tab = saved.tab
@@ -117,7 +149,11 @@
     if (q.has('ctx')) ctx = q.get('ctx') || null
     if (q.has('cat')) catFilter = q.get('cat') || ''
     if (q.has('day')) dayFilter = q.get('day') || ''
-    addEventListener('hashchange', () => { route = parseRoute(location.hash); maybeResolve() })
+    addEventListener('hashchange', () => {
+      route = parseRoute(location.hash)
+      if (route.type === 'join') { joinCode = route.code; joinError = '' }
+      maybeResolve()
+    })
     supabase.auth.getSession().then(({ data }) => {
       signedIn = !!data.session; userEmail = data.session?.user.email ?? null
       ready = true; maybeResolve()
@@ -126,8 +162,28 @@
       signedIn = !!session; userEmail = session?.user.email ?? null
       if (session) { step = 'email'; code = '' }
       maybeResolve()
+      // Resume a join the user started before signing in.
+      if (session && pendingJoinCode) { const c = pendingJoinCode; pendingJoinCode = ''; attemptJoin(c) }
     })
-    return () => sub.subscription.unsubscribe()
+    // Install-as-app hint.
+    if (!isStandalone() && !installDismissed()) {
+      installIOS = /iphone|ipad|ipod/i.test(navigator.userAgent)
+      if (installIOS) showInstall = true // iOS Safari has no install event → manual hint
+    }
+    const onBip = (e: Event) => {
+      e.preventDefault()
+      deferredPrompt = e as unknown as { prompt: () => void; userChoice: Promise<unknown> }
+      canInstall = true
+      if (!isStandalone() && !installDismissed()) showInstall = true
+    }
+    addEventListener('beforeinstallprompt', onBip)
+    const onInstalled = () => { showInstall = false; canInstall = false }
+    addEventListener('appinstalled', onInstalled)
+    return () => {
+      sub.subscription.unsubscribe()
+      removeEventListener('beforeinstallprompt', onBip)
+      removeEventListener('appinstalled', onInstalled)
+    }
   })
 
   // Persist the selection and mirror it live into the URL (tab/ctx/cat/day), so a
@@ -168,9 +224,33 @@
       const cats = m.map((x) => x.category).filter(Boolean) as string[]
       if (catFilter && !cats.includes(catFilter)) catFilter = ''
       startListPoll()
+      // Result-retention notice for the active group (best-effort, non-blocking).
+      if (ctx) loadGroupRetention(ctx).then((r) => { retention = r }).catch(() => {})
+      else retention = null
     } catch { matchesState = 'error' }
   }
-  function changeCtx(v: Ctx) { ctx = v; catFilter = ''; dayFilter = ''; selected = null; reloadData() }
+  function changeCtx(v: Ctx) { ctx = v; catFilter = ''; dayFilter = ''; selected = null; retention = null; reloadData() }
+
+  // Join a training group by its short code (server-throttled). Requires sign-in;
+  // if signed out, remembers the code and retries right after authentication.
+  async function attemptJoin(raw: string) {
+    const c = raw.trim()
+    if (!c) return
+    joinBusy = true; joinError = ''
+    const r = await joinWithCode(c)
+    joinBusy = false
+    if (r.status === 'ok') {
+      groups = await loadGroups().catch(() => groups)
+      ctx = r.groupId; catFilter = ''; dayFilter = ''; tab = 'matches'
+      joinCode = ''; route = { type: 'home' }
+      try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
+      await reloadData()
+    } else if (r.status === 'auth') {
+      pendingJoinCode = c; joinError = 'auth'
+    } else {
+      joinError = r.status
+    }
+  }
 
   async function send() {
     busy = true; error = ''
@@ -189,6 +269,21 @@
 
 <main>
   <h1><img class="logo" src="icon.png" alt="" /> Fooseroo <span class="tag">Web</span></h1>
+
+  {#if showInstall}
+    <div class="install">
+      {#if canInstall}
+        <span>Fooseroo Web als App installieren?</span>
+        <span class="rowbtns">
+          <button class="ghost small" onclick={doInstall}>Installieren</button>
+          <button class="ghost small" onclick={dismissInstall}>Später</button>
+        </span>
+      {:else if installIOS}
+        <span>Installieren: unten auf <strong>Teilen</strong> tippen, dann <strong>„Zum Home-Bildschirm"</strong>.</span>
+        <button class="ghost small" onclick={dismissInstall}>OK</button>
+      {/if}
+    </div>
+  {/if}
 
   {#if selected && view}
     <button class="ghost small back" onclick={closeMatch}>← Zurück</button>
@@ -237,10 +332,30 @@
     <p>Geteilte Trainings-Ansicht folgt in Kürze.</p>
     <a class="ghost-link" href="#/">Zur Übersicht</a>
 
+  {:else if route.type === 'join'}
+    <h2 class="jointitle">Gruppe beitreten</h2>
+    {#if !signedIn}
+      <p class="hint">Melde dich an, um {#if joinCode}der Gruppe beizutreten (Code {joinCode}){:else}einer Gruppe beizutreten{/if}.</p>
+      {@render authForm()}
+      <a class="ghost-link" href="#/">Abbrechen</a>
+    {:else}
+      <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
+      <input bind:value={joinCode} placeholder="Code (z. B. K7QF-3MZP)" autocomplete="off"
+             autocapitalize="characters" />
+      <button onclick={() => attemptJoin(joinCode)} disabled={joinBusy || !joinCode.trim()}>
+        {joinBusy ? 'Trete bei…' : 'Beitreten'}
+      </button>
+      {#if joinError && joinError !== 'auth'}<p class="err">{joinErrorText(joinError)}</p>{/if}
+      <a class="ghost-link" href="#/">Abbrechen</a>
+    {/if}
+
   {:else if signedIn}
     <div class="row">
       <span class="hint">Angemeldet als {userEmail}</span>
-      <button class="ghost small" onclick={signOut}>Abmelden</button>
+      <span class="rowbtns">
+        <button class="ghost small" onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
+        <button class="ghost small" onclick={signOut}>Abmelden</button>
+      </span>
     </div>
 
     <div class="tabs">
@@ -264,6 +379,10 @@
         {#each days as d}<option value={d}>{dayLabel(d)}</option>{/each}
       </select>
     </div>
+
+    {#if retention}
+      <p class="retention">🛡️ Ergebnisse dieser Gruppe werden nach {retention.days} Tagen automatisch gelöscht.</p>
+    {/if}
 
     {#if tab === 'matches'}
       {#if matchesState === 'loading'}
@@ -410,6 +529,14 @@
   .sets { font-size: 18px; font-weight: 800; white-space: nowrap; }
   .sets.running { color: var(--team-a); }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
+  .jointitle { font-size: 20px; margin: 4px 0 2px; }
+  /* retention notice: subtle, but clearly visible (privacy assurance) */
+  .retention { color: var(--team-a); font-size: 13px; background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 10px; padding: 8px 10px; }
+  .install { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
+    gap: 8px; font-size: 13px; color: var(--on-surface); background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 12px; padding: 8px 12px; }
   button.small { padding: 6px 10px; font-size: 13px; }
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 

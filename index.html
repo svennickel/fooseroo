@@ -72,6 +72,9 @@
     }
     .badge { margin-top: 28px; display: inline-block; }
     .badge img { height: 72px; }
+    .open-web { margin-top: 12px; }
+    .open-web a { color: var(--muted); font-size: 14px; text-decoration: none; border-bottom: 1px dotted var(--muted); }
+    .open-web a:hover { color: var(--accent-soft); border-bottom-color: var(--accent-soft); }
     .features {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -129,6 +132,8 @@
     <img id="playBadge" alt="Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
   </a>
 
+  <p class="open-web"><a href="/app/" data-i18n="openWeb"></a></p>
+
   <div class="features">
     <div class="feature">
       <span class="emoji">📊</span>
@@ -168,7 +173,8 @@
         f3_title: "Training",
         f3_text: "Zeitmessung und Zeitgefühl nach ITSF (10s/15s), mit Tagesauswertung pro Person.",
         footerLink: "Fooseroo bei Google Play",
-        webVersion: "Webversion (Beta)"
+        webVersion: "Webversion (Beta)",
+        openWeb: "Oder direkt im Browser öffnen →"
       },
       en: {
         _title: "Fooseroo – the table football app: league, counter & timer",
@@ -183,7 +189,8 @@
         f3_title: "Training",
         f3_text: "Time measurement and time feeling by ITSF (10s/15s), with a daily per-player evaluation.",
         footerLink: "Fooseroo on Google Play",
-        webVersion: "Web version (beta)"
+        webVersion: "Web version (beta)",
+        openWeb: "Or open directly in the browser →"
       }
     };
 

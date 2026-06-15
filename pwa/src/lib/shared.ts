@@ -57,10 +57,12 @@ export async function resolveSharedMatch(token: string): Promise<Resolution<Shar
   }
 }
 
-// Parse the hash route: #/m/<token> (match) or #/t/<token> (training).
+// Parse the hash route: #/m/<token> (match), #/t/<token> (training), or
+// #/g/<CODE> (join a training group by code, mirroring the app's fooseroo.app/g/…).
 export type Route =
   | { type: 'match'; token: string }
   | { type: 'training'; token: string }
+  | { type: 'join'; code: string }
   | { type: 'home' }
 
 export function parseRoute(hash: string): Route {
@@ -68,7 +70,38 @@ export function parseRoute(hash: string): Route {
   if (m) return { type: 'match', token: m[1] }
   const t = hash.match(/^#\/t\/([0-9a-zA-Z]+)/)
   if (t) return { type: 'training', token: t[1] }
+  const j = hash.match(/^#\/g\/([0-9A-Za-z-]*)/)
+  if (j) return { type: 'join', code: j[1] }
   return { type: 'home' }
+}
+
+// Join a training group via its short code, mirroring the app's join_with_code RPC
+// (server-normalized + throttled). Requires a signed-in account.
+export type JoinResult =
+  | { status: 'ok'; groupId: string }
+  | { status: 'auth' }       // signed-out: prompt sign-in, then retry
+  | { status: 'invalid' }    // unknown / disabled / expired code
+  | { status: 'throttled' }
+  | { status: 'full' }
+  | { status: 'error' }
+
+export async function joinWithCode(code: string): Promise<JoinResult> {
+  const { data: sess } = await supabase.auth.getSession()
+  if (!sess.session) return { status: 'auth' }
+  try {
+    const { data, error } = await supabase.rpc('join_with_code', { p_code: code })
+    if (error) {
+      const m = (error.message || '').toLowerCase()
+      if (m.includes('too_many_attempts')) return { status: 'throttled' }
+      if (m.includes('invalid_or_expired')) return { status: 'invalid' }
+      if (m.includes('group_full')) return { status: 'full' }
+      if (m.includes('not_authenticated')) return { status: 'auth' }
+      return { status: 'error' }
+    }
+    return { status: 'ok', groupId: data as string }
+  } catch {
+    return { status: 'error' }
+  }
 }
 
 // Re-export for the training view (resolved like a match, by group hash + day).
