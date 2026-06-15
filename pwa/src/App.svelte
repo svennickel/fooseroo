@@ -3,8 +3,8 @@
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, type SharedMatch, type Route } from './lib/shared'
-  import { loadPersonalMatches, loadPersonalTraining, winnerSide, formatElapsed,
-    type MatchItem, type TrainingItem } from './lib/data'
+  import { loadMatches, loadTraining, loadGroups, winnerSide, formatElapsed,
+    type MatchItem, type TrainingItem, type Group, type Ctx } from './lib/data'
   import { parseMatchState } from './lib/match'
 
   let route = $state<Route>({ type: 'home' })
@@ -28,6 +28,18 @@
   let matchesState = $state<'idle' | 'loading' | 'error'>('idle')
   let training = $state<TrainingItem[]>([])
 
+  // Context (Dein Konto / a group), category + day filters — like the app.
+  let groups = $state<Group[]>([])
+  let ctx = $state<Ctx>(null)
+  let catFilter = $state<string>('')  // '' = all categories
+  let dayFilter = $state<string>('')  // '' = all days; else a yyyy-mm-dd-ish key
+  const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
+  const categories = $derived([...new Set(matches.map((m) => m.category).filter(Boolean))] as string[])
+  const days = $derived([...new Set(matches.map((m) => dayOf(m.at)))])
+  const shownMatches = $derived(matches.filter((m) =>
+    (catFilter === '' || m.category === catFilter) && (dayFilter === '' || dayOf(m.at) === dayFilter)))
+  const shownTraining = $derived(training.filter((t) => dayFilter === '' || dayOf(t.at) === dayFilter))
+
   const kindLabel = (k: TrainingItem['kind']) =>
     k === 'measure' ? 'Zeitmessung' : k === 'measure_success' ? 'Zeit & Erfolg' : 'Erfolgsquote'
 
@@ -50,7 +62,7 @@
   async function refreshSelected() {
     if (!selected) return
     try {
-      const all = await loadPersonalMatches()
+      const all = await loadMatches(ctx)
       matches = all
       const at = selected.at
       const fresh = all.find((m) => m.at === at)
@@ -84,13 +96,19 @@
       if (r.status === 'ok') { shared = r.data; sharedState = 'idle' }
       else sharedState = r.status === 'auth' ? 'idle' : r.status
     } else if (route.type === 'home' && signedIn) {
-      matchesState = 'loading'
-      try {
-        const [m, t] = await Promise.all([loadPersonalMatches(), loadPersonalTraining()])
-        matches = m; training = t; matchesState = 'idle'
-      } catch { matchesState = 'error' }
+      if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
+      await reloadData()
     }
   }
+
+  async function reloadData() {
+    matchesState = 'loading'
+    try {
+      const [m, t] = await Promise.all([loadMatches(ctx), loadTraining(ctx)])
+      matches = m; training = t; matchesState = 'idle'
+    } catch { matchesState = 'error' }
+  }
+  function changeCtx(v: Ctx) { ctx = v; catFilter = ''; dayFilter = ''; reloadData() }
 
   async function send() {
     busy = true; error = ''
@@ -191,16 +209,32 @@
       <span class="hint">Angemeldet als {userEmail}</span>
       <button class="ghost small" onclick={signOut}>Abmelden</button>
     </div>
-    <h2>Deine Matches</h2>
+
+    <div class="filters">
+      <select value={ctx ?? ''} onchange={(e) => changeCtx((e.currentTarget.value || null))}>
+        <option value="">Dein Konto</option>
+        {#each groups as g}<option value={g.id}>{g.name}</option>{/each}
+      </select>
+      <select bind:value={catFilter}>
+        <option value="">Alle Kategorien</option>
+        {#each categories as c}<option value={c}>{c}</option>{/each}
+      </select>
+      <select bind:value={dayFilter}>
+        <option value="">Alle Tage</option>
+        {#each days as d}<option value={d}>{fmtDate(Date.parse(d))}</option>{/each}
+      </select>
+    </div>
+
+    <h2>Matches</h2>
     {#if matchesState === 'loading'}
       <p class="hint">Lädt…</p>
     {:else if matchesState === 'error'}
       <p class="err">Matches konnten nicht geladen werden.</p>
-    {:else if matches.length === 0}
-      <p class="hint">Noch keine gespeicherten Matches in „Dein Konto". Erfasse welche in der App – sie erscheinen hier.</p>
+    {:else if shownMatches.length === 0}
+      <p class="hint">Keine Matches{#if catFilter || dayFilter} mit diesem Filter{/if} – erfasse welche in der App, sie erscheinen hier.</p>
     {:else}
       <ul class="list">
-        {#each matches as m}
+        {#each shownMatches as m}
           {@const w = winnerSide(m.setsHome, m.setsAway)}
           <li>
             <button class="card card-btn" onclick={() => openMatch(m)}>
@@ -220,11 +254,11 @@
     <h2>Dein Training</h2>
     {#if matchesState === 'loading'}
       <p class="hint">Lädt…</p>
-    {:else if training.length === 0}
-      <p class="hint">Noch keine Trainingsergebnisse in „Dein Konto".</p>
+    {:else if shownTraining.length === 0}
+      <p class="hint">Keine Trainingsergebnisse{#if dayFilter} an diesem Tag{/if}.</p>
     {:else}
       <ul class="list">
-        {#each training.slice(0, 50) as t}
+        {#each shownTraining.slice(0, 50) as t}
           <li class="card trow">
             <div>
               <strong>{t.name || '—'}</strong>
@@ -293,6 +327,9 @@
   .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   button.small { padding: 6px 10px; font-size: 13px; }
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; }
+  .filters select { flex: 1; min-width: 120px; padding: 10px; border-radius: 10px;
+    border: 1px solid #2d4636; background: #16271c; color: #e8f0ea; font-size: 14px; }
   .trow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
   .trow .meta { margin-left: 8px; }
   .tval { font-weight: 700; white-space: nowrap; }

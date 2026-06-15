@@ -1,5 +1,18 @@
 import { supabase } from './supabase'
 
+export type Group = { id: string; name: string }
+
+// The signed-in user's training groups (RLS limits to memberships).
+export async function loadGroups(): Promise<Group[]> {
+  const { data, error } = await supabase.from('groups').select('id,name').order('name')
+  if (error) throw error
+  return (data ?? []).map((g: { id: string; name: string | null }) => ({ id: g.id, name: g.name ?? '—' }))
+}
+
+// A data context: null = "Dein Konto" (personal, group_id null), else a group id.
+export type Ctx = string | null
+const ctxFilter = (q: any, ctx: Ctx) => (ctx == null ? q.is('group_id', null) : q.eq('group_id', ctx))
+
 export type MatchItem = {
   homeName: string
   awayName: string
@@ -43,11 +56,12 @@ export function dayKey(at: number): string {
 
 // The signed-in user's PERSONAL matches (group_id null), newest first. RLS limits
 // rows to the user. A later step adds group context switching.
-export async function loadPersonalMatches(): Promise<MatchItem[]> {
-  const { data, error } = await supabase
-    .from('matches')
-    .select('home_name,away_name,sets_home,sets_away,category,state,created_at,deleted_at,group_id,running')
-    .is('group_id', null)
+export async function loadMatches(ctx: Ctx = null): Promise<MatchItem[]> {
+  const { data, error } = await ctxFilter(
+    supabase
+      .from('matches')
+      .select('home_name,away_name,sets_home,sets_away,category,state,created_at,deleted_at,group_id,running'),
+    ctx)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
   if (error) throw error
@@ -71,11 +85,12 @@ export async function loadPersonalMatches(): Promise<MatchItem[]> {
 // kind: "measure" (Zeitmessung), "measure_success" (Zeit & Erfolg), "outcome"
 // (Erfolgsquote). The lean payload lives in data jsonb (name/ts/elapsedMs/limit/
 // success), mirroring CloudTrainingSync.
-export async function loadPersonalTraining(): Promise<TrainingItem[]> {
-  const { data, error } = await supabase
-    .from('training_entries')
-    .select('kind,mode,data,occurred_at,deleted_at,group_id')
-    .is('group_id', null)
+export async function loadTraining(ctx: Ctx = null): Promise<TrainingItem[]> {
+  const { data, error } = await ctxFilter(
+    supabase
+      .from('training_entries')
+      .select('kind,mode,data,occurred_at,deleted_at,group_id'),
+    ctx)
     .is('deleted_at', null)
     .order('occurred_at', { ascending: false })
   if (error) throw error
