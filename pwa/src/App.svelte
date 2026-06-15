@@ -201,32 +201,7 @@
       </div>
       <div class="meta center">{fmtDate(selected.at)}{#if selected.category} · {selected.category}{/if}</div>
 
-      <div class="sets-row">
-        {#each view.sets as s}<span class="setchip">{s.a}:{s.b}</span>{/each}
-        {#if selected.running && view.current}<span class="setchip cur">{view.current.a}:{view.current.b}</span>{/if}
-      </div>
-
-      {#if selected.running && view.current}
-        <div class="curset">
-          <div class="cg a" class:srv={view.serve === 'A'}>
-            <div class="num">{view.current.a}</div>
-            <div class="to">{'•'.repeat(view.timeoutsA)}</div>
-          </div>
-          <div class="csep">:</div>
-          <div class="cg b" class:srv={view.serve === 'B'}>
-            <div class="num">{view.current.b}</div>
-            <div class="to">{'•'.repeat(view.timeoutsB)}</div>
-          </div>
-        </div>
-        <div class="hint center">Laufender Satz · Aufschlag: {view.serve === 'A' ? selected.homeName : view.serve === 'B' ? selected.awayName : '—'}</div>
-      {/if}
-
       {#if progress && progress.rows.length}
-        <h2>Verlauf</h2>
-        <div class="prog-legend">
-          <span class="dotc a"></span> {selected.homeName}
-          <span class="dotc b"></span> {selected.awayName}
-        </div>
         <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
       {/if}
     </div>
@@ -301,6 +276,7 @@
         <ul class="list">
           {#each shownMatches as m}
             {@const w = winnerSide(m.setsHome, m.setsAway)}
+            {@const mv = parseMatchState(m.state, m.running)}
             <li>
               <button class="card card-btn" onclick={() => openMatch(m)}>
                 {#if m.running}<div class="live"><span class="dot"></span> LIVE</div>{/if}
@@ -309,7 +285,15 @@
                   <span class="sets" class:running={m.running}>{m.setsHome} : {m.setsAway}</span>
                   <span class="team">{#if !m.running && w === 'away'}⭐ {/if}{m.awayName}</span>
                 </div>
-                <div class="meta">{dayLabel(dayOf(m.at))}{#if m.category} · {m.category}{/if}</div>
+                <div class="metarow">
+                  <span class="meta">{dayLabel(dayOf(m.at))}{#if m.category} · {m.category}{/if}</span>
+                  {#if mv.sets.length || (m.running && mv.current)}
+                    <span class="chips">
+                      {#each mv.sets as s}<span class="setchip">{s.a}:{s.b}</span>{/each}
+                      {#if m.running && mv.current}<span class="setchip cur">{mv.current.a}:{mv.current.b}</span>{/if}
+                    </span>
+                  {/if}
+                </div>
               </button>
             </li>
           {/each}
@@ -425,7 +409,6 @@
   .team.home { text-align: right; }
   .sets { font-size: 18px; font-weight: 800; white-space: nowrap; }
   .sets.running { color: var(--team-a); }
-  h2 { font-size: 17px; margin: 8px 0 2px; }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   button.small { padding: 6px 10px; font-size: 13px; }
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
@@ -470,22 +453,11 @@
   .hname.a { color: var(--team-a); text-align: right; }
   .hname.b { color: var(--team-b); text-align: left; }
   .hsets { font-size: 44px; font-weight: 800; padding: 0 10px; line-height: 1; }
-  .sets-row { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; }
   .setchip { background: var(--surface-variant); color: var(--on-surface-variant);
     border-radius: 8px; padding: 2px 10px; font-size: 13px; font-weight: 600; }
   .setchip.cur { background: transparent; border: 1.5px solid var(--live); color: var(--live); }
-  .curset { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px;
-    background: var(--surface); border: 1px solid var(--outline); border-radius: 16px; padding: 18px; }
-  .cg { text-align: center; }
-  .cg.a { color: var(--team-a); } .cg.b { color: var(--team-b); }
-  .cg.srv .num::after { content: " •"; font-size: 22px; vertical-align: super; }
-  .num { font-size: 48px; font-weight: 800; line-height: 1; }
-  .to { color: var(--on-surface-variant); min-height: 16px; letter-spacing: 3px; }
-  .csep { font-size: 32px; font-weight: 800; color: var(--on-surface-variant); }
-
-  /* progression legend (which colour is which team) */
-  .prog-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap;
-    color: var(--on-surface-variant); font-size: 13px; }
-  .dotc { width: 10px; height: 10px; border-radius: 3px; display: inline-block; }
-  .dotc.a { background: var(--team-a); } .dotc.b { background: var(--team-b); margin-left: 8px; }
+  /* match-tile meta line: date/category on the left, set chips on the right */
+  .metarow { display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 8px; flex-wrap: wrap; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
 </style>
