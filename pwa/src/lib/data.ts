@@ -8,6 +8,7 @@ export type MatchItem = {
   category: string | null
   at: number // epoch ms
   state: unknown
+  running: boolean
 }
 
 // 'home' | 'away' | 'tie' — who won by sets. Pure (unit-tested).
@@ -45,7 +46,7 @@ export function dayKey(at: number): string {
 export async function loadPersonalMatches(): Promise<MatchItem[]> {
   const { data, error } = await supabase
     .from('matches')
-    .select('home_name,away_name,sets_home,sets_away,category,state,created_at,deleted_at,group_id')
+    .select('home_name,away_name,sets_home,sets_away,category,state,created_at,deleted_at,group_id,running')
     .is('group_id', null)
     .is('deleted_at', null)
     .order('created_at', { ascending: false })
@@ -53,7 +54,7 @@ export async function loadPersonalMatches(): Promise<MatchItem[]> {
   return (data ?? []).map((r: {
     home_name: string | null; away_name: string | null
     sets_home: number | null; sets_away: number | null
-    category: string | null; state: unknown; created_at: string | null
+    category: string | null; state: unknown; created_at: string | null; running: boolean | null
   }) => ({
     homeName: r.home_name ?? '–',
     awayName: r.away_name ?? '–',
@@ -61,7 +62,8 @@ export async function loadPersonalMatches(): Promise<MatchItem[]> {
     setsAway: r.sets_away ?? 0,
     category: r.category,
     at: r.created_at ? Date.parse(r.created_at) : 0,
-    state: r.state
+    state: r.state,
+    running: r.running ?? false
   }))
 }
 
