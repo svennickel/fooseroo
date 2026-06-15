@@ -3,6 +3,7 @@
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, type SharedMatch, type Route } from './lib/shared'
+  import { loadPersonalMatches, winnerSide, type MatchItem } from './lib/data'
 
   let route = $state<Route>({ type: 'home' })
   let signedIn = $state(false)
@@ -19,6 +20,13 @@
   // Shared content
   let shared = $state<SharedMatch | null>(null)
   let sharedState = $state<'idle' | 'loading' | 'notfound' | 'error'>('idle')
+
+  // Own (personal) matches list
+  let matches = $state<MatchItem[]>([])
+  let matchesState = $state<'idle' | 'loading' | 'error'>('idle')
+
+  const fmtDate = (at: number) =>
+    new Date(at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
 
   onMount(() => {
     route = parseRoute(location.hash)
@@ -41,6 +49,10 @@
       const r = await resolveSharedMatch(route.token)
       if (r.status === 'ok') { shared = r.data; sharedState = 'idle' }
       else sharedState = r.status === 'auth' ? 'idle' : r.status
+    } else if (route.type === 'home' && signedIn) {
+      matchesState = 'loading'
+      try { matches = await loadPersonalMatches(); matchesState = 'idle' }
+      catch { matchesState = 'error' }
     }
   }
 
@@ -94,9 +106,33 @@
     <a class="ghost-link" href="#/">Zur Übersicht</a>
 
   {:else if signedIn}
-    <p>Angemeldet als <strong>{userEmail}</strong>.</p>
-    <p class="hint">Deine Matches &amp; Trainings erscheinen hier in Kürze – inkl. Live-Ansicht.</p>
-    <button class="ghost" onclick={signOut}>Abmelden</button>
+    <div class="row">
+      <span class="hint">Angemeldet als {userEmail}</span>
+      <button class="ghost small" onclick={signOut}>Abmelden</button>
+    </div>
+    <h2>Deine Matches</h2>
+    {#if matchesState === 'loading'}
+      <p class="hint">Lädt…</p>
+    {:else if matchesState === 'error'}
+      <p class="err">Matches konnten nicht geladen werden.</p>
+    {:else if matches.length === 0}
+      <p class="hint">Noch keine gespeicherten Matches in „Dein Konto". Erfasse welche in der App – sie erscheinen hier.</p>
+    {:else}
+      <ul class="list">
+        {#each matches as m}
+          {@const w = winnerSide(m.setsHome, m.setsAway)}
+          <li class="card">
+            <div class="score">
+              <span class="team" class:win={w === 'home'}>{m.homeName}</span>
+              <span class="sets">{m.setsHome} : {m.setsAway}</span>
+              <span class="team" class:win={w === 'away'}>{m.awayName}</span>
+            </div>
+            <div class="meta">{fmtDate(m.at)}{#if m.category} · {m.category}{/if}</div>
+          </li>
+        {/each}
+      </ul>
+    {/if}
+    <p class="hint">Training &amp; Live-Ansicht folgen.</p>
 
   {:else}
     <p>Melde dich an, um deine Matches &amp; Trainings (und geteilte Inhalte) hier zu sehen.</p>
@@ -143,4 +179,8 @@
   .team:last-child { text-align: right; }
   .team.win { color: #81c784; }
   .sets { font-size: 26px; font-weight: 800; }
+  h2 { font-size: 18px; margin: 8px 0 2px; }
+  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+  button.small { padding: 6px 10px; font-size: 13px; }
+  .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 </style>
