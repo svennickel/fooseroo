@@ -397,7 +397,7 @@
     </div>
 
     {#if retention}
-      <p class="retention">🛡️ Ergebnisse dieser Gruppe werden nach {retention.days} Tagen automatisch gelöscht.</p>
+      <p class="retention">🛡️ Ergebnisse in dieser Trainingsgruppe werden nach {retention.days} Tagen automatisch gelöscht.</p>
     {/if}
 
     {#if tab === 'matches'}
