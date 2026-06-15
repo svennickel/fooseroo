@@ -7,8 +7,9 @@ export type Side = 'A' | 'B'
 
 // A single goal in the progression. a/b are the cumulative set score AFTER it,
 // `label` is the scoring team's running count within the set (the number drawn in
-// the counter box), `t` its epoch-ms timestamp (null if absent), `set` its set idx.
-export type GoalEvent = { team: Side; a: number; b: number; label: number; t: number | null; set: number }
+// the counter box), `t` its epoch-ms timestamp (null if absent), `set` its set idx,
+// `idx` its position in the match's action history (stable id, for transitions).
+export type GoalEvent = { team: Side; a: number; b: number; label: number; t: number | null; set: number; idx: number }
 
 export type MatchView = {
   sets: { a: number; b: number }[] // completed sets
@@ -44,12 +45,13 @@ export function parseMatchState(stateRaw: unknown, running: boolean): MatchView 
   const sets: { a: number; b: number }[] = []
   const goals: GoalEvent[] = []
   let a = 0, b = 0, set = 0
-  for (const act of actions) {
+  for (let idx = 0; idx < actions.length; idx++) {
+    const act = actions[idx]
     const team = side(act?.team)
     if (act?.type === 'GOAL') {
       if (team === 'A') a++
       else if (team === 'B') b++
-      if (team) goals.push({ team, a, b, label: team === 'A' ? a : b, t: parseTime(act?.time), set })
+      if (team) goals.push({ team, a, b, label: team === 'A' ? a : b, t: parseTime(act?.time), set, idx })
     } else if (act?.type === 'GAME_FINISHED') {
       sets.push({ a, b }); a = 0; b = 0; set++
     }
@@ -78,7 +80,7 @@ export function setsWon(view: MatchView): { a: number; b: number } {
 // B's slightly below, so the counters visibly leapfrog. All dimensions are the
 // app's dp values used 1:1 as CSS px so it reads like the Android view.
 
-export type ProgGoal = { team: Side; label: number; t: number | null }
+export type ProgGoal = { team: Side; label: number; t: number | null; idx: number }
 export type ProgRow = { goalsA: number; goalsB: number; goals: ProgGoal[]; live: boolean }
 
 export const PROG = {
@@ -94,7 +96,7 @@ export function progressRows(view: MatchView, running: boolean): { rows: ProgRow
   const bySet = new Map<number, ProgGoal[]>()
   for (const g of view.goals) {
     const arr = bySet.get(g.set) ?? []
-    arr.push({ team: g.team, label: g.label, t: g.t })
+    arr.push({ team: g.team, label: g.label, t: g.t, idx: g.idx })
     bySet.set(g.set, arr)
   }
   const rows: ProgRow[] = view.sets.map((s, i) => ({

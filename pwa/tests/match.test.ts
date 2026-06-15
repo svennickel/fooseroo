@@ -23,7 +23,7 @@ describe('parseMatchState', () => {
     expect(v.current).toEqual({ a: 0, b: 1 })
     expect(v.timeoutsA).toBe(1)
     expect(v.serve).toBe('A')
-    expect(v.goals.at(-1)).toEqual({ team: 'B', a: 0, b: 1, label: 1, t: null, set: 1 })
+    expect(v.goals.at(-1)).toEqual({ team: 'B', a: 0, b: 1, label: 1, t: null, set: 1, idx: 5 })
     expect(v.goals.length).toBe(4)
   })
 
