@@ -6,15 +6,19 @@
   <title>Fooseroo</title>
   <link rel="icon" type="image/png" href="/icon.png">
   <script>
-    // GitHub Pages has no server-side router, so readable deep-link paths
-    // (e.g. /ntfv/liga/254/saison/21) land here. Forward the path to the
-    // homepage, which shows a hint that the link opens in the Fooseroo app.
-    //
-    // With the app installed and its App Links verified, Android opens these
-    // fooseroo.app URLs directly in the app - this page is never reached.
+    // GitHub Pages has no server-side router. With the app installed and its App
+    // Links verified, Android opens these fooseroo.app URLs directly in the app and
+    // this page is never reached. Otherwise:
+    //  - shared match/training links (/m/<token>, /t/<token>) open the WEB VERSION
+    //    (the PWA at /app/), which shows the shared content after sign-in,
+    //  - other deep links (league paths) fall back to the homepage hint.
     (function () {
-      var path = location.pathname + location.search;
-      location.replace('/?deeplink=' + encodeURIComponent(path));
+      var share = location.pathname.match(/^\/(m|t)\/([0-9A-Za-z]+)\/?$/);
+      if (share) {
+        location.replace('/app/#/' + share[1] + '/' + share[2]);
+        return;
+      }
+      location.replace('/?deeplink=' + encodeURIComponent(location.pathname + location.search));
     })();
   </script>
 </head>
