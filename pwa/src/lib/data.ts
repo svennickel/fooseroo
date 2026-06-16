@@ -1,12 +1,46 @@
 import { supabase } from './supabase'
 
-export type Group = { id: string; name: string }
+export type Group = { id: string; name: string; ownerId: string | null }
 
-// The signed-in user's training groups (RLS limits to memberships).
+// The signed-in user's training groups (RLS limits to memberships). ownerId lets the
+// UI hide "leave" for the owner (who deletes the group instead, like the app).
 export async function loadGroups(): Promise<Group[]> {
-  const { data, error } = await supabase.from('groups').select('id,name').order('name')
+  const { data, error } = await supabase.from('groups').select('id,name,owner_id').order('name')
   if (error) throw error
-  return (data ?? []).map((g: { id: string; name: string | null }) => ({ id: g.id, name: g.name ?? '—' }))
+  return (data ?? []).map((g: { id: string; name: string | null; owner_id: string | null }) =>
+    ({ id: g.id, name: g.name ?? '—', ownerId: g.owner_id ?? null }))
+}
+
+// My per-group display name (group_names: one row per group+user), or null if unset.
+// Best-effort — never throws (the UI just shows "festlegen" if it can't read).
+export async function myGroupName(groupId: string): Promise<string | null> {
+  try {
+    const { data: sess } = await supabase.auth.getSession()
+    const uid = sess.session?.user.id
+    if (!uid) return null
+    const { data, error } = await supabase
+      .from('group_names').select('name').eq('group_id', groupId).eq('user_id', uid).maybeSingle()
+    if (error || !data) return null
+    return (data as { name: string | null }).name ?? null
+  } catch { return null }
+}
+
+// Set my per-group display name (set_group_name RPC). Returns whether the name
+// collides with another member's (a soft warning, like the app). Throws on failure.
+export async function setGroupDisplayName(groupId: string, name: string): Promise<{ duplicate: boolean }> {
+  const { data, error } = await supabase.rpc('set_group_name', { g: groupId, p_name: name.trim() })
+  if (error) throw error
+  return { duplicate: data === true }
+}
+
+// Leave a training group (delete my membership). Owners cannot leave (RLS / the
+// app guards that) — they delete the group instead. Throws on failure.
+export async function leaveGroup(groupId: string): Promise<void> {
+  const { data: sess } = await supabase.auth.getSession()
+  const uid = sess.session?.user.id
+  if (!uid) throw new Error('not_authenticated')
+  const { error } = await supabase.from('memberships').delete().eq('group_id', groupId).eq('user_id', uid)
+  if (error) throw error
 }
 
 // Optional result retention of a group (null = off / not set). Best-effort: if the

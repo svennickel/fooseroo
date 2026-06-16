@@ -492,6 +492,17 @@
   }
   function changeCtx(v: Ctx) { ctx = v; catFilter = ''; dayFilter = ''; selected = null; retention = null; reloadData() }
 
+  // After leaving a group (in the Account dialog): reload memberships, and if the
+  // active context was that group, fall back to "Dein Konto".
+  async function refreshGroupsAfterChange() {
+    groups = await loadGroups().catch(() => groups)
+    if (ctx && !groups.some((g) => g.id === ctx)) changeCtx(null)
+    if (groups.length === 0) {
+      // No groups left → web access only via a paid plan; re-check entitlement.
+      entitled = await checkEntitlement().catch(() => entitled)
+    }
+  }
+
   // Leave the join view and return to the home list (works whether the join view
   // was opened via the in-app button or a #/g/<code> deep link).
   function goHome() {
@@ -513,6 +524,16 @@
       const c = code.trim()
       if (c.replace(/[^0-9A-Za-z]/g, '').length < 6) { invitePreview = null; return }
       invitePreview = await groupInvitePreview(c)
+      // Already a member + signed in → just switch to that group, skip the join step.
+      if (invitePreview && signedIn) {
+        const want = invitePreview.name.trim().toLowerCase()
+        const mine = groups.find((g) => g.name.trim().toLowerCase() === want)
+        if (mine) {
+          invitePreview = null; joinCode = ''; route = { type: 'home' }
+          try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
+          changeCtx(mine.id)
+        }
+      }
     }, 300)
   })
 
@@ -824,8 +845,9 @@
   <Settings onClose={() => (showSettings = false)} />
 {/if}
 {#if showAccount}
-  <Account {signedIn} {userEmail} onClose={() => (showAccount = false)}
-           onJoin={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }} />
+  <Account {signedIn} {userEmail} {groups} {myUserId} onClose={() => (showAccount = false)}
+           onJoin={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}
+           onGroupsChanged={refreshGroupsAfterChange} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga

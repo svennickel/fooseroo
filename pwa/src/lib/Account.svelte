@@ -1,13 +1,15 @@
 <script lang="ts">
-  // "Konto & Sync" dialog, mirroring the app — without the "Lokal" card (the web is
-  // account-based, no local-only mode) and without group management / tariffs.
-  // Backup & Sync: inline email-OTP when signed out, e-mail + sign-out when signed
-  // in. Trainingsgruppe: info + join-by-code (management lives in the Android app).
+  // "Konto & Sync" dialog, mirroring the app. Backup & Sync: inline email-OTP when
+  // signed out, e-mail + sign-out when signed in. Trainingsgruppe: join-by-code PLUS
+  // per-group management like the app — set my display name + leave (with a
+  // confirmation). Full owner admin (members/roles/rename/delete) stays in the app.
   import { requestCode, verifyCode } from './auth'
   import { supabase } from './supabase'
+  import { myGroupName, setGroupDisplayName, leaveGroup, type Group } from './data'
 
-  let { signedIn, userEmail, onClose, onJoin }:
-    { signedIn: boolean; userEmail: string | null; onClose: () => void; onJoin: () => void } = $props()
+  let { signedIn, userEmail, groups, myUserId, onClose, onJoin, onGroupsChanged }:
+    { signedIn: boolean; userEmail: string | null; groups: Group[]; myUserId: string | null;
+      onClose: () => void; onJoin: () => void; onGroupsChanged: () => void } = $props()
 
   let step = $state<'idle' | 'email' | 'code'>('idle')
   let email = $state('')
@@ -15,6 +17,38 @@
   let busy = $state(false)
   let err = $state('')
   let confirmOut = $state(false)
+
+  // Per-group UI state, keyed by group id.
+  let names = $state<Record<string, string | null>>({})   // my display name in each group
+  let editing = $state<string | null>(null)               // group whose name is being edited
+  let nameDraft = $state('')
+  let gMsg = $state<Record<string, string>>({})            // soft per-group hint/error
+  let leaveAsk = $state<string | null>(null)               // group pending leave confirmation
+  let gBusy = $state<string | null>(null)                  // group with an in-flight action
+
+  $effect(() => {
+    for (const g of groups) if (!(g.id in names)) myGroupName(g.id).then((n) => { names = { ...names, [g.id]: n } })
+  })
+
+  function startEdit(g: Group) { editing = g.id; nameDraft = names[g.id] ?? ''; gMsg = { ...gMsg, [g.id]: '' } }
+  async function saveName(g: Group) {
+    const v = nameDraft.trim()
+    if (!v || gBusy) return
+    gBusy = g.id
+    try {
+      const { duplicate } = await setGroupDisplayName(g.id, v)
+      names = { ...names, [g.id]: v }; editing = null
+      gMsg = { ...gMsg, [g.id]: duplicate ? 'Dieser Name wird in der Gruppe bereits verwendet.' : '' }
+    } catch { gMsg = { ...gMsg, [g.id]: 'Konnte nicht gespeichert werden.' } }
+    finally { gBusy = null }
+  }
+  async function doLeave(g: Group) {
+    if (gBusy) return
+    gBusy = g.id
+    try { await leaveGroup(g.id); leaveAsk = null; onGroupsChanged() }
+    catch { gMsg = { ...gMsg, [g.id]: 'Verlassen fehlgeschlagen.' } }
+    finally { gBusy = null }
+  }
 
   async function send() {
     if (busy || !email.includes('@')) return
@@ -79,8 +113,39 @@
       <div class="acard">
         <div class="ctitle">👥&nbsp; Trainingsgruppe</div>
         <div class="cdesc">Gemeinsam in Echtzeit eintragen.</div>
+        {#if signedIn && groups.length}
+          {#each groups as g (g.id)}
+            <div class="grow">
+              <div class="gname">{g.name}{#if g.ownerId && g.ownerId === myUserId}<span class="gtag">Inhaber:in</span>{/if}</div>
+              {#if editing === g.id}
+                <div class="btnrow">
+                  <input class="ginput" bind:value={nameDraft} maxlength="40" placeholder="Mein Anzeigename"
+                         onkeydown={(e) => { if (e.key === 'Enter') saveName(g) }} />
+                  <button class="primary" onclick={() => saveName(g)} disabled={gBusy === g.id || !nameDraft.trim()}>Speichern</button>
+                  <button class="ghost small" onclick={() => (editing = null)}>Abbrechen</button>
+                </div>
+              {:else}
+                <button class="ghost small" onclick={() => startEdit(g)}>
+                  {names[g.id] ? `Mein Anzeigename: ${names[g.id]}` : 'Anzeigename festlegen'}
+                </button>
+              {/if}
+              {#if g.ownerId && g.ownerId === myUserId}
+                <p class="hint">Als Inhaber:in: Mitglieder verwalten, umbenennen oder löschen in der App.</p>
+              {:else if leaveAsk === g.id}
+                <p class="hint">„{g.name}" wirklich verlassen? Du verlierst den Zugriff auf die Gruppendaten.</p>
+                <div class="btnrow">
+                  <button class="danger small" onclick={() => doLeave(g)} disabled={gBusy === g.id}>Verlassen</button>
+                  <button class="ghost small" onclick={() => (leaveAsk = null)}>Abbrechen</button>
+                </div>
+              {:else}
+                <button class="ghost small leave" onclick={() => { leaveAsk = g.id }}>Gruppe verlassen</button>
+              {/if}
+              {#if gMsg[g.id]}<p class="hint warn">{gMsg[g.id]}</p>{/if}
+            </div>
+          {/each}
+        {/if}
         <button class="ghost small" onclick={() => { onClose(); onJoin() }}>Gruppe beitreten</button>
-        <p class="hint">Trainingsgruppen verwalten und Tarife buchen: in der Fooseroo-App für Android.</p>
+        <p class="hint">Volle Verwaltung (Mitglieder, Rollen, Tarife): in der Fooseroo-App für Android.</p>
       </div>
     </div>
   </div>
@@ -115,4 +180,16 @@
   .ghost.small { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 600; cursor: pointer;
     align-self: flex-start; }
+  .danger.small { background: transparent; color: var(--bad); border: 1px solid var(--bad);
+    border-radius: 10px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .danger.small:disabled { opacity: .5; cursor: default; }
+  /* Per-group management row */
+  .grow { border-top: 1px solid var(--outline); padding-top: 10px; margin-top: 2px;
+    display: flex; flex-direction: column; gap: 6px; align-items: flex-start; }
+  .gname { font-weight: 700; font-size: 15px; display: flex; align-items: center; gap: 8px; }
+  .gtag { font-size: 11px; font-weight: 600; background: var(--surface-variant);
+    color: var(--on-surface-variant); padding: 1px 7px; border-radius: 8px; }
+  .ginput { flex: 1; min-width: 140px; }
+  .leave { color: var(--on-surface-variant); border-color: var(--outline); }
+  .warn { color: var(--bad); }
 </style>
