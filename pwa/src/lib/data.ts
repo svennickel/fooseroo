@@ -43,6 +43,61 @@ export async function leaveGroup(groupId: string): Promise<void> {
   if (error) throw error
 }
 
+// ---- Group administration (owner/moderator), mirroring GroupManageFragment ----
+export type Member = { userId: string; email: string | null; name: string | null; role: string; access: string }
+export type GroupSettings = {
+  id: string; name: string; ownerId: string | null; maxMembers: number
+  joinCode: string | null; joinEnabled: boolean; joinDefaultAccess: string
+  retentionDays: number | null; retentionTz: string | null
+}
+
+// Roster via the group_members RPC (emails only for managers; backend-enforced).
+export async function groupMembers(groupId: string): Promise<Member[]> {
+  const { data, error } = await supabase.rpc('group_members', { g: groupId })
+  if (error) throw error
+  return (data ?? []).map((m: { user_id: string; email: string | null; name: string | null; role: string | null; access: string | null }) =>
+    ({ userId: m.user_id, email: m.email ?? null, name: m.name ?? null, role: m.role ?? 'member', access: m.access ?? 'write' }))
+}
+
+// Group settings row (join code etc. only readable by managers via RLS → null fields).
+export async function groupSettings(groupId: string): Promise<GroupSettings | null> {
+  const { data, error } = await supabase.from('groups')
+    .select('id,name,owner_id,max_members,join_code,join_enabled,join_default_access,retention_days,retention_tz')
+    .eq('id', groupId).maybeSingle()
+  if (error || !data) return null
+  const g = data as Record<string, unknown>
+  return {
+    id: g.id as string, name: (g.name as string) ?? '—', ownerId: (g.owner_id as string) ?? null,
+    maxMembers: (g.max_members as number) ?? 20, joinCode: (g.join_code as string) ?? null,
+    joinEnabled: (g.join_enabled as boolean) ?? true, joinDefaultAccess: (g.join_default_access as string) ?? 'write',
+    retentionDays: (g.retention_days as number) ?? null, retentionTz: (g.retention_tz as string) ?? null
+  }
+}
+
+export async function setMemberRole(groupId: string, target: string, role: string): Promise<void> {
+  const { error } = await supabase.rpc('set_member_role', { g: groupId, target, new_role: role }); if (error) throw error
+}
+export async function setMemberAccess(groupId: string, target: string, access: string): Promise<void> {
+  const { error } = await supabase.rpc('set_member_access', { g: groupId, target, new_access: access }); if (error) throw error
+}
+export async function removeMember(groupId: string, target: string): Promise<void> {
+  const { error } = await supabase.rpc('remove_member', { g: groupId, target }); if (error) throw error
+}
+export async function regenerateJoinCode(groupId: string): Promise<string | null> {
+  const { data, error } = await supabase.rpc('regenerate_join_code', { g: groupId }); if (error) throw error
+  return (data as string) ?? null
+}
+export async function configureJoin(groupId: string, enabled: boolean, unlimited: boolean, defaultAccess: string): Promise<void> {
+  const { error } = await supabase.rpc('configure_join',
+    { g: groupId, p_enabled: enabled, p_unlimited: unlimited, p_default_access: defaultAccess }); if (error) throw error
+}
+export async function setResultRetention(groupId: string, days: number | null, tz: string | null): Promise<void> {
+  const { error } = await supabase.rpc('set_result_retention', { g: groupId, p_days: days, p_tz: tz }); if (error) throw error
+}
+export async function deleteGroup(groupId: string): Promise<void> {
+  const { error } = await supabase.rpc('delete_group', { g: groupId }); if (error) throw error
+}
+
 // Optional result retention of a group (null = off / not set). Best-effort: if the
 // backend doesn't have the retention columns yet, this resolves to null (the notice
 // simply stays hidden) so the web app never breaks ahead of the migration.

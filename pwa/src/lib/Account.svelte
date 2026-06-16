@@ -6,6 +6,9 @@
   import { requestCode, verifyCode } from './auth'
   import { supabase } from './supabase'
   import { myGroupName, setGroupDisplayName, leaveGroup, type Group } from './data'
+  import GroupManage from './GroupManage.svelte'
+
+  let manageGroup = $state<Group | null>(null)
 
   let { signedIn, userEmail, groups, myUserId, onClose, onJoin, onGroupsChanged }:
     { signedIn: boolean; userEmail: string | null; groups: Group[]; myUserId: string | null;
@@ -117,6 +120,7 @@
           {#each groups as g (g.id)}
             <div class="grow">
               <div class="gname">{g.name}{#if g.ownerId && g.ownerId === myUserId}<span class="gtag">Inhaber:in</span>{/if}</div>
+              <button class="ghost small" onclick={() => (manageGroup = g)}>Verwalten</button>
               {#if editing === g.id}
                 <div class="btnrow">
                   <input class="ginput" bind:value={nameDraft} maxlength="40" placeholder="Mein Anzeigename"
@@ -150,6 +154,12 @@
     </div>
   </div>
 </div>
+
+{#if manageGroup}
+  <GroupManage groupId={manageGroup.id} groupName={manageGroup.name} {myUserId}
+               onClose={() => (manageGroup = null)}
+               onChanged={() => { onGroupsChanged(); manageGroup = null }} />
+{/if}
 
 <style>
   .overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.45);
