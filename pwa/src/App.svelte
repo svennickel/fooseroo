@@ -774,6 +774,7 @@
     <button onclick={send} disabled={busy || !email.includes('@')}>Code per E-Mail senden</button>
   {:else}
     <p class="hint">Code aus der E-Mail an <strong>{email}</strong>:</p>
+    <p class="hint subtle">Gib den 6-stelligen Code direkt hier ein. Tippe <strong>nicht</strong> auf den Link in der E-Mail – er öffnet den Browser, nicht diese App.</p>
     <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder="Code"
            onkeydown={(e) => { if (e.key === 'Enter' && !busy && code.trim()) verify() }} />
     <button onclick={verify} disabled={busy || !code.trim()}>Anmelden</button>
@@ -861,6 +862,7 @@
     padding: 2px 8px; border-radius: 8px; vertical-align: middle; font-weight: 600; }
   p { margin: 0; line-height: 1.5; }
   .hint { color: var(--on-surface-variant); } .err { color: var(--bad); }
+  .hint.subtle { font-size: 13px; margin-top: -4px; }
   input { padding: 12px 14px; border-radius: 12px; border: 1px solid var(--outline);
     background: var(--surface); color: var(--on-surface); font-size: 16px; }
   button { padding: 12px 14px; border-radius: 12px; border: 0; background: var(--team-a);
