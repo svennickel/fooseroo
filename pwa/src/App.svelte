@@ -135,6 +135,7 @@
   let announceBaseline = true
   let spokenGoals = 0, spokenSets = 0, spokenTimeouts = 0, spokenFinal = false
   let lastStateTs = 0 // ignore out-of-order live "state" pushes
+  let swapAnim = $state(0) // bumped when a live update swaps the two sides → cross-slide
   function toggleRead() {
     readAloud = !readAloud
     try { localStorage.setItem('fs_read', readAloud ? '1' : '0') } catch { /* ignore */ }
@@ -149,17 +150,21 @@
     const run = !!sel.running
     const goals = v.goals.length, sets = v.sets.length, timeouts = v.timeouts.length
 
-    // Read-aloud just turned on (or detail just opened with it on): "Live A gegen
-    // B" + catch-up tally/score, like announceMatchStart.
-    if (announceBaseline) {
+    // Read-aloud only applies to a RUNNING match (the toggle is shown only then).
+    // Baseline ("Live A gegen B" + catch-up) is announced when read-aloud turns on
+    // while live. Opening an ALREADY-finished match must stay silent — even though
+    // readAloud is persisted on — so re-entering a finished game doesn't re-announce.
+    if (run && announceBaseline) {
       spokenGoals = goals; spokenSets = sets; spokenTimeouts = timeouts
       announceBaseline = false; spokenFinal = false
       speak(matchStartLine(v, n))
       return
     }
-    // Match finished while open → "Endstand …" once (the toggle then hides).
     if (!run) {
-      if (!spokenFinal) { spokenFinal = true; speak(finalLine(v, n)) }
+      // "Endstand …" only on a genuine live→finished transition we were watching
+      // (baseline already done). Not on a fresh open of a finished match
+      // (announceBaseline still true → stays silent).
+      if (!announceBaseline && !spokenFinal) { spokenFinal = true; speak(finalLine(v, n)) }
       return
     }
     // Undo/edit pulled counts back → "Korrektur." + recomputed set score, resync.
@@ -218,6 +223,9 @@
         try {
           const parsed = JSON.parse(json)
           const w = setsWon(parseMatchState(parsed, true))
+          // The editor swapped sides → the two team names exchange. Trigger the
+          // cross-slide (like the app's edit-view swap) instead of a hard jump.
+          if (teamA && teamB && teamA === cur.awayName && teamB === cur.homeName && teamA !== teamB) swapAnim++
           selected = { ...cur, state: parsed, running: true, setsHome: w.a, setsAway: w.b,
             homeName: teamA ?? cur.homeName, awayName: teamB ?? cur.awayName }
         } catch { /* ignore malformed push */ }
@@ -289,7 +297,7 @@
 
   function openMatch(m: MatchItem) {
     selected = m
-    announceBaseline = true; spokenGoals = 0; spokenSets = 0; spokenTimeouts = 0; spokenFinal = false
+    announceBaseline = true; spokenGoals = 0; spokenSets = 0; spokenTimeouts = 0; spokenFinal = false; swapAnim = 0
     stopPoll(); stopListPoll()
     // Group matches are shareable → reflect the token in the URL so the link opens
     // the app and a reload keeps showing this detail. (Personal matches have no
@@ -604,11 +612,15 @@
     {#if shareNote}<div class="share-note">{shareNote}</div>{/if}
     <div class="detail">
       {#if selected.running}<div class="live big"><span class="dot"></span> LIVE</div>{/if}
-      <div class="hero">
-        <div class="hname a">{#if !selected.running && selected.setsHome > selected.setsAway}{selected.homeName} ⭐{:else}{selected.homeName}{/if}</div>
-        <div class="hsets">{selected.setsHome} : {selected.setsAway}</div>
-        <div class="hname b">{#if !selected.running && selected.setsAway > selected.setsHome}⭐ {selected.awayName}{:else}{selected.awayName}{/if}</div>
-      </div>
+      <!-- Keyed on swapAnim so a live side-swap re-mounts the hero and replays the
+           cross-slide (like the app's edit-view swap); no animation on first open. -->
+      {#key swapAnim}
+        <div class="hero" class:swap-anim={swapAnim > 0}>
+          <div class="hname a">{#if !selected.running && selected.setsHome > selected.setsAway}{selected.homeName} ⭐{:else}{selected.homeName}{/if}</div>
+          <div class="hsets">{selected.setsHome} : {selected.setsAway}</div>
+          <div class="hname b">{#if !selected.running && selected.setsAway > selected.setsHome}⭐ {selected.awayName}{:else}{selected.awayName}{/if}</div>
+        </div>
+      {/key}
       <div class="meta center">{fmtDate(selected.at)}{#if selected.category} · {selected.category}{/if}</div>
 
       {#if selected.running && speechOk}
@@ -1026,6 +1038,14 @@
   .hname { font-size: 22px; font-weight: 800; }
   .hname.a { color: var(--team-a); text-align: right; }
   .hname.b { color: var(--team-b); text-align: left; }
+  /* Side-swap cross-slide: the new left enters from the left, the new right from
+     the right — mirroring swapSides() in the app's edit view. */
+  .swap-anim .hname.a { animation: swapInA 300ms ease both; }
+  .swap-anim .hname.b { animation: swapInB 300ms ease both; }
+  .swap-anim .hsets { animation: swapFade 300ms ease both; }
+  @keyframes swapInA { from { transform: translateX(-44px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @keyframes swapInB { from { transform: translateX(44px); opacity: 0 } to { transform: none; opacity: 1 } }
+  @keyframes swapFade { from { opacity: .2 } to { opacity: 1 } }
   .hsets { font-size: 44px; font-weight: 800; padding: 0 10px; line-height: 1; }
   .setchip { background: var(--surface-variant); color: var(--on-surface-variant);
     border-radius: 8px; padding: 2px 8px; font-size: 12px; font-weight: 500; }
