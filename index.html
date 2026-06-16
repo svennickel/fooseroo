@@ -70,11 +70,20 @@
       line-height: 1.6;
       font-size: 1.02rem;
     }
-    .badge { margin-top: 28px; display: inline-block; }
-    .badge img { height: 72px; }
-    .open-web { margin-top: 12px; }
-    .open-web a { color: var(--muted); font-size: 14px; text-decoration: none; border-bottom: 1px dotted var(--muted); }
-    .open-web a:hover { color: var(--accent-soft); border-bottom-color: var(--accent-soft); }
+    .cta-row { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 14px;
+      justify-content: center; align-items: center; }
+    .badge { display: inline-block; }
+    .badge img { height: 72px; display: block; }
+    /* Store-style badge that points to the web version (iOS & desktop). */
+    .webbadge { display: inline-flex; align-items: center; gap: 11px; height: 54px;
+      box-sizing: border-box; padding: 0 18px; background: #000; border: 1px solid #4a4a4a;
+      border-radius: 12px; color: #fff; text-decoration: none;
+      transition: border-color .15s, transform .15s; }
+    .webbadge:hover { border-color: #8a8a8a; transform: translateY(-1px); }
+    .wb-icon { width: 26px; height: 26px; flex: 0 0 auto; color: #fff; }
+    .wb-text { display: flex; flex-direction: column; line-height: 1.12; text-align: left; }
+    .wb-top { font-size: 10px; letter-spacing: .12em; text-transform: uppercase; opacity: .82; }
+    .wb-main { font-size: 18px; font-weight: 700; }
     .features {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
@@ -128,11 +137,22 @@
 
   <div id="shareNote" class="share-note" data-i18n="shareNote"></div>
 
-  <a class="badge" href="https://play.google.com/store/apps/details?id=de.snickel.fooser">
-    <img id="playBadge" alt="Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
-  </a>
-
-  <p class="open-web"><a href="/app/" data-i18n="openWeb"></a></p>
+  <div class="cta-row">
+    <a class="badge" href="https://play.google.com/store/apps/details?id=de.snickel.fooser">
+      <img id="playBadge" alt="Google Play" src="https://play.google.com/intl/en_us/badges/static/images/badges/en_badge_web_generic.png">
+    </a>
+    <a class="webbadge" href="/app/" aria-label="Fooseroo Web-App">
+      <svg class="wb-icon" viewBox="0 0 24 24" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="1.6"/>
+        <line x1="3" y1="12" x2="21" y2="12" stroke="currentColor" stroke-width="1.6"/>
+        <path d="M12,3 a5,9 0 0,0 0,18 a5,9 0 0,0 0,-18" fill="none" stroke="currentColor" stroke-width="1.6"/>
+      </svg>
+      <span class="wb-text">
+        <span class="wb-top" data-i18n="webBadgeTop"></span>
+        <span class="wb-main" data-i18n="webBadgeMain"></span>
+      </span>
+    </a>
+  </div>
 
   <div class="features">
     <div class="feature">
@@ -174,7 +194,8 @@
         f3_text: "Zeitmessung und Zeitgefühl nach ITSF (10s/15s), mit Tagesauswertung pro Person.",
         footerLink: "Fooseroo bei Google Play",
         webVersion: "Webversion (Beta)",
-        openWeb: "Oder direkt im Browser öffnen →"
+        webBadgeTop: "Für iOS & Desktop",
+        webBadgeMain: "Web-App öffnen"
       },
       en: {
         _title: "Fooseroo – the table football app: league, counter & timer",
@@ -190,7 +211,8 @@
         f3_text: "Time measurement and time feeling by ITSF (10s/15s), with a daily per-player evaluation.",
         footerLink: "Fooseroo on Google Play",
         webVersion: "Web version (beta)",
-        openWeb: "Or open directly in the browser →"
+        webBadgeTop: "For iOS & desktop",
+        webBadgeMain: "Open the web app"
       }
     };
 
