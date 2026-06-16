@@ -18,6 +18,7 @@
   import MatchProgress from './lib/MatchProgress.svelte'
   import MatchEditor from './lib/MatchEditor.svelte'
   import CategoryEditor from './lib/CategoryEditor.svelte'
+  import TrainingEntry from './lib/TrainingEntry.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
@@ -31,6 +32,7 @@
   let showDatePicker = $state(false)
   let showCatPicker = $state(false)
   let showCatEditor = $state(false)
+  let trainingEntry = $state(false)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -103,6 +105,9 @@
   const playerSuggestions = $derived([...new Set(
     matches.flatMap((m) => [m.homeName, m.awayName]).flatMap((l) => (l || '').split(' & '))
       .map((s) => s.trim()).filter((s) => s && s !== '–'))])
+  // Training name + category suggestions (from existing entries).
+  const trainingNames = $derived([...new Set(training.map((t) => t.name).filter(Boolean))] as string[])
+  const trainingModes = $derived([...new Set(training.map((t) => t.mode).filter(Boolean))] as string[])
   // Counts shown in the date/category pickers (like the app): matches per day (all
   // categories) and per category on the selected day.
   const dayCount = (d: string) => matches.filter((m) => dayOf(m.at) === d).length
@@ -828,6 +833,7 @@
         </ul>
       {/if}
     {:else}
+      <button class="newmatch" onclick={() => (trainingEntry = true)}>＋ Neuer Trainingseintrag</button>
       {#if matchesState === 'loading'}
         <p class="hint">Lädt…</p>
       {:else if shownTraining.length === 0}
@@ -880,6 +886,11 @@
 {#if showCatEditor}
   <CategoryEditor {ctx} {categories} {defaultCategory}
                   onClose={() => (showCatEditor = false)} onChanged={() => reloadData(true)} />
+{/if}
+{#if trainingEntry}
+  <TrainingEntry {ctx} nameSuggestions={trainingNames.length ? trainingNames : playerSuggestions}
+                 modeSuggestions={trainingModes}
+                 onClose={() => (trainingEntry = false)} onSaved={() => reloadData(true)} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
