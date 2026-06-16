@@ -7,5 +7,8 @@ const SUPABASE_KEY = 'sb_publishable_YD4f5-FaEtqq9A2k3p78kA__VUeQfLM'
 
 export const supabase = createClient(SUPABASE_URL, SUPABASE_KEY, {
   db: { schema: 'fooseroo' },
-  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: false }
+  // detectSessionInUrl: the web OTP one-tap link goes through Supabase's verify
+  // endpoint (on supabase.co, so the Android app never intercepts it) and redirects
+  // back to /app/ with the session in the URL — picked up here to complete login.
+  auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true }
 })

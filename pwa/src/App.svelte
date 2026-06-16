@@ -625,17 +625,23 @@
       --ok: #A5D6A7; --bad: #FF8A80;
     }
   }
+  /* The page background covers the whole screen incl. behind the status bar. The
+     solid top colour on <html> matches the status bar theme-color exactly, so there
+     is no seam/line; the body carries the subtle gradient (no fixed attachment,
+     which caused a visible band at the safe-area edge). */
+  :global(html) { background: var(--bg); }
   :global(body) { margin: 0; font-family: system-ui, -apple-system, "Roboto", sans-serif;
+    min-height: 100vh;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
-    background-attachment: fixed; color: var(--on-surface); }
+    color: var(--on-surface); }
   main { max-width: 440px; margin: 0 auto;
-    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px 96px;
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 96px;
     display: flex; flex-direction: column; gap: 14px; }
-  /* Logo + wordmark like the app's branding: round logo, "Fooseroo" bold in the
-     brand blue, same family/colour, similar position. */
-  h1 { font-size: 28px; margin: 0 0 6px; display: flex; align-items: center; gap: 11px; }
-  .logo { width: 36px; height: 36px; border-radius: 50%; }
-  .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.2px; }
+  /* Logo + wordmark like the app's branding: large round logo, "Fooseroo" bold in
+     the brand blue, same family/colour, similar position. */
+  h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
+  .logo { width: 48px; height: 48px; border-radius: 50%; }
+  .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.3px; }
   .tag { font-size: 12px; background: var(--surface-variant); color: var(--on-surface-variant);
     padding: 2px 8px; border-radius: 8px; vertical-align: middle; font-weight: 600; }
   p { margin: 0; line-height: 1.5; }
