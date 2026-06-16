@@ -9,6 +9,7 @@
   import { parseMatchState, progressRows } from './lib/match'
   import { encodeMatch } from './lib/share'
   import { speak, cancelSpeech, speechSupported, acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from './lib/live'
+  import { matchStartLine, goalLine, currentScoreLine, setWinLines, correctionLine, finalLine } from './lib/commentary'
   import { applyTheme, getTheme, termsAccepted, onboardingShown } from './lib/prefs'
   import Onboarding from './lib/Onboarding.svelte'
   import Settings from './lib/Settings.svelte'
@@ -130,31 +131,50 @@
   let readAloud = $state(false)
   try { readAloud = localStorage.getItem('fs_read') === '1' } catch { /* ignore */ }
   let announceBaseline = true
-  let spokenGoals = 0, spokenSets = 0
+  let spokenGoals = 0, spokenSets = 0, spokenFinal = false
   function toggleRead() {
     readAloud = !readAloud
     try { localStorage.setItem('fs_read', readAloud ? '1' : '0') } catch { /* ignore */ }
     if (readAloud) announceBaseline = true; else cancelSpeech()
   }
-  // Announce new goals / finished sets as live updates arrive (diff vs. last spoken).
+  // Announce live updates as they arrive (diff vs. last spoken). Wording is a
+  // byte-for-byte port of the app's LiveCommentaryService (lib/commentary.ts).
   $effect(() => {
-    const v = view, on = readAloud, run = !!selected?.running, sel = selected
-    if (!v || !on || !run || !sel) return
+    const v = view, on = readAloud, sel = selected
+    if (!v || !on || !sel) return
+    const n = { home: sel.homeName, away: sel.awayName }
+    const run = !!sel.running
     const goals = v.goals.length, sets = v.sets.length
+
+    // Read-aloud just turned on (or detail just opened with it on): "Live A gegen
+    // B" + catch-up tally/score, like announceMatchStart.
     if (announceBaseline) {
-      spokenGoals = goals; spokenSets = sets; announceBaseline = false
-      speak(`Vorlesen aktiv. ${sel.homeName} gegen ${sel.awayName}. Es steht ${sel.setsHome} zu ${sel.setsAway} nach Sätzen.`)
+      spokenGoals = goals; spokenSets = sets; announceBaseline = false; spokenFinal = false
+      speak(matchStartLine(v, n))
       return
     }
-    if (goals > spokenGoals) {
-      for (const g of v.goals.slice(spokenGoals))
-        speak(`Tor ${g.team === 'A' ? sel.homeName : sel.awayName}. ${g.a} zu ${g.b}.`)
-      spokenGoals = goals
+    // Match finished while open → "Endstand …" once (the toggle then hides).
+    if (!run) {
+      if (!spokenFinal) { spokenFinal = true; speak(finalLine(v, n)) }
+      return
     }
-    if (sets > spokenSets) {
-      spokenSets = sets
-      speak(`Satz beendet. Es steht ${sel.setsHome} zu ${sel.setsAway} nach Sätzen.`)
+    // Undo/edit pulled counts back → "Korrektur." + recomputed set score, resync.
+    if (goals < spokenGoals || sets < spokenSets) {
+      spokenGoals = goals; spokenSets = sets
+      speak(correctionLine(v, n))
+      return
     }
+    const newGoals = goals > spokenGoals, newSets = sets > spokenSets
+    // Deciding goal is spoken before the set-win line (app event order).
+    if (newGoals) for (let i = spokenGoals; i < goals; i++) speak(goalLine(v, n, i))
+    if (newSets) for (let i = spokenSets; i < sets; i++) {
+      const [win, tally] = setWinLines(v, n, i)
+      speak(win); speak(tally)
+    }
+    // The running set score follows a goal burst — but not when a set just closed
+    // (that already ended with the tally; the new set would read 0 zu 0).
+    if (newGoals && !newSets) speak(currentScoreLine(v, n))
+    spokenGoals = goals; spokenSets = sets
   })
   // Keep the screen awake while a live match detail is open (like the app).
   $effect(() => {
@@ -205,7 +225,7 @@
 
   function openMatch(m: MatchItem) {
     selected = m
-    announceBaseline = true; spokenGoals = 0; spokenSets = 0
+    announceBaseline = true; spokenGoals = 0; spokenSets = 0; spokenFinal = false
     stopPoll(); stopListPoll()
     // Group matches are shareable → reflect the token in the URL so the link opens
     // the app and a reload keeps showing this detail. (Personal matches have no
