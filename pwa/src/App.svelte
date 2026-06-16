@@ -524,17 +524,20 @@
       const c = code.trim()
       if (c.replace(/[^0-9A-Za-z]/g, '').length < 6) { invitePreview = null; return }
       invitePreview = await groupInvitePreview(c)
-      // Already a member + signed in → just switch to that group, skip the join step.
-      if (invitePreview && signedIn) {
-        const want = invitePreview.name.trim().toLowerCase()
-        const mine = groups.find((g) => g.name.trim().toLowerCase() === want)
-        if (mine) {
-          invitePreview = null; joinCode = ''; route = { type: 'home' }
-          try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
-          changeCtx(mine.id)
-        }
-      }
     }, 300)
+  })
+
+  // Already a member + signed in → just switch to that group, skip the join step.
+  // Reactive to `groups` too, so it still fires if memberships load after the
+  // preview resolved. (Matches by name; the invite preview carries no id.)
+  $effect(() => {
+    if (route.type !== 'join' || !signedIn || !invitePreview) return
+    const want = invitePreview.name.trim().toLowerCase()
+    const mine = groups.find((g) => g.name.trim().toLowerCase() === want)
+    if (!mine) return
+    invitePreview = null; joinCode = ''; route = { type: 'home' }
+    try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
+    changeCtx(mine.id)
   })
 
   // Join a training group by its short code (server-throttled). Requires sign-in;
