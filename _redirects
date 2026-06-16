@@ -1,0 +1,11 @@
+# Cloudflare Pages redirects. fooseroo.app is served by Cloudflare Pages, which —
+# unlike the GitHub Pages origin — does NOT serve our 404.html for unknown paths;
+# it returned a typeless, empty 404, which browsers saved as a ".txt" download.
+# Route the deeplink paths (opened only when the Android App Links did NOT catch
+# them, i.e. no app installed / iOS / desktop) to the landing, carrying the
+# original path in ?go= so the landing offers Play Store + Web and the web tile
+# opens the matching in-app view. (Installed Android app intercepts these before
+# Cloudflare is ever reached.)
+/m/*  /?go=/m/:splat  302
+/t/*  /?go=/t/:splat  302
+/g/*  /?go=/g/:splat  302
