@@ -6,10 +6,11 @@
     type SharedMatch, type Route, type InvitePreview } from './lib/shared'
   import { loadMatches, loadTraining, loadGroups, loadGroupRetention, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
-  import { parseMatchState, progressRows } from './lib/match'
+  import { parseMatchState, progressRows, setsWon } from './lib/match'
+  import { watchLiveMatch, liveChannelId } from './lib/livematch'
   import { encodeMatch } from './lib/share'
   import { speak, cancelSpeech, speechSupported, acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from './lib/live'
-  import { matchStartLine, goalLine, currentScoreLine, setWinLines, correctionLine, finalLine } from './lib/commentary'
+  import { matchStartLine, goalLine, currentScoreLine, setWinLines, correctionLine, finalLine, timeoutLine, recapLine } from './lib/commentary'
   import { applyTheme, getTheme, termsAccepted, onboardingShown } from './lib/prefs'
   import Onboarding from './lib/Onboarding.svelte'
   import Settings from './lib/Settings.svelte'
@@ -32,6 +33,7 @@
   // membership in at least one training group. null = not yet checked.
   let entitled = $state<boolean | null>(null)
   let userEmail = $state<string | null>(null)
+  let myUserId = $state<string | null>(null)
   let ready = $state(false)
 
   // Auth form
@@ -131,7 +133,8 @@
   let readAloud = $state(false)
   try { readAloud = localStorage.getItem('fs_read') === '1' } catch { /* ignore */ }
   let announceBaseline = true
-  let spokenGoals = 0, spokenSets = 0, spokenFinal = false
+  let spokenGoals = 0, spokenSets = 0, spokenTimeouts = 0, spokenFinal = false
+  let lastStateTs = 0 // ignore out-of-order live "state" pushes
   function toggleRead() {
     readAloud = !readAloud
     try { localStorage.setItem('fs_read', readAloud ? '1' : '0') } catch { /* ignore */ }
@@ -144,12 +147,13 @@
     if (!v || !on || !sel) return
     const n = { home: sel.homeName, away: sel.awayName }
     const run = !!sel.running
-    const goals = v.goals.length, sets = v.sets.length
+    const goals = v.goals.length, sets = v.sets.length, timeouts = v.timeouts.length
 
     // Read-aloud just turned on (or detail just opened with it on): "Live A gegen
     // B" + catch-up tally/score, like announceMatchStart.
     if (announceBaseline) {
-      spokenGoals = goals; spokenSets = sets; announceBaseline = false; spokenFinal = false
+      spokenGoals = goals; spokenSets = sets; spokenTimeouts = timeouts
+      announceBaseline = false; spokenFinal = false
       speak(matchStartLine(v, n))
       return
     }
@@ -159,14 +163,18 @@
       return
     }
     // Undo/edit pulled counts back → "Korrektur." + recomputed set score, resync.
-    if (goals < spokenGoals || sets < spokenSets) {
-      spokenGoals = goals; spokenSets = sets
+    if (goals < spokenGoals || sets < spokenSets || timeouts < spokenTimeouts) {
+      spokenGoals = goals; spokenSets = sets; spokenTimeouts = timeouts
       speak(correctionLine(v, n))
       return
     }
     const newGoals = goals > spokenGoals, newSets = sets > spokenSets
     // Deciding goal is spoken before the set-win line (app event order).
     if (newGoals) for (let i = spokenGoals; i < goals; i++) speak(goalLine(v, n, i))
+    if (timeouts > spokenTimeouts) {
+      for (let i = spokenTimeouts; i < timeouts; i++) speak(timeoutLine(v, n, i))
+      spokenTimeouts = timeouts
+    }
     if (newSets) for (let i = spokenSets; i < sets; i++) {
       const [win, tally] = setWinLines(v, n, i)
       speak(win); speak(tally)
@@ -175,6 +183,62 @@
     // (that already ended with the tally; the new set would read 0 zu 0).
     if (newGoals && !newSets) speak(currentScoreLine(v, n))
     spokenGoals = goals; spokenSets = sets
+  })
+
+  // Periodic recap ("Spielstand weiter …") every 3 minutes while live and reading,
+  // like the app's RECAP_MILLIS. Keyed on a stable boolean so the per-poll `selected`
+  // churn doesn't keep resetting the interval (which would stop it ever firing).
+  const liveReading = $derived(readAloud && !!selected?.running)
+  $effect(() => {
+    if (!liveReading) return
+    const id = setInterval(() => {
+      const v = view, sel = selected
+      if (v && sel?.running) speak(recapLine(v, { home: sel.homeName, away: sel.awayName }))
+    }, 3 * 60 * 1000)
+    return () => clearInterval(id)
+  })
+
+  // Realtime live view: while a running match is open, join its broadcast channel
+  // as a read-only viewer (like the app), so each goal/timeout/set arrives instantly
+  // instead of on the next poll. Keyed on derived primitives so per-poll `selected`
+  // churn (reassignment with the same id) doesn't re-subscribe; the poll stays as a
+  // fallback if realtime is down.
+  const liveAt = $derived(selected?.running ? selected.at : null)
+  const liveScope = $derived(selected?.running ? (ctx ?? myUserId) : null)
+  $effect(() => {
+    const at = liveAt, scope = liveScope
+    if (at == null || !scope) return
+    lastStateTs = 0
+    const unsub = watchLiveMatch(liveChannelId(scope, at), {
+      onState: (json, teamA, teamB, ts) => {
+        if (ts != null && ts <= lastStateTs) return
+        if (ts != null) lastStateTs = ts
+        const cur = selected
+        if (!cur) return
+        try {
+          const parsed = JSON.parse(json)
+          const w = setsWon(parseMatchState(parsed, true))
+          selected = { ...cur, state: parsed, running: true, setsHome: w.a, setsAway: w.b,
+            homeName: teamA ?? cur.homeName, awayName: teamB ?? cur.awayName }
+        } catch { /* ignore malformed push */ }
+      },
+      onEnded: (finalJson, abandoned) => {
+        const cur = selected
+        if (!cur) return
+        if (abandoned) {
+          spokenFinal = true // discarded → no "Endstand"
+          selected = { ...cur, running: false }
+        } else {
+          try {
+            const parsed = finalJson ? JSON.parse(finalJson) : cur.state
+            const w = setsWon(parseMatchState(parsed, false))
+            selected = { ...cur, state: parsed, running: false, setsHome: w.a, setsAway: w.b }
+          } catch { selected = { ...cur, running: false } }
+        }
+        stopPoll()
+      }
+    })
+    return () => unsub()
   })
   // Keep the screen awake while a live match detail is open (like the app).
   $effect(() => {
@@ -225,7 +289,7 @@
 
   function openMatch(m: MatchItem) {
     selected = m
-    announceBaseline = true; spokenGoals = 0; spokenSets = 0; spokenFinal = false
+    announceBaseline = true; spokenGoals = 0; spokenSets = 0; spokenTimeouts = 0; spokenFinal = false
     stopPoll(); stopListPoll()
     // Group matches are shareable → reflect the token in the URL so the link opens
     // the app and a reload keeps showing this detail. (Personal matches have no
@@ -300,10 +364,12 @@
     })
     supabase.auth.getSession().then(({ data }) => {
       signedIn = !!data.session; userEmail = data.session?.user.email ?? null
+      myUserId = data.session?.user.id ?? null
       ready = true; maybeResolve()
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       signedIn = !!session; userEmail = session?.user.email ?? null
+      myUserId = session?.user.id ?? null
       if (session) { step = 'email'; code = '' } else { entitled = null }
       maybeResolve()
       // Resume a join the user started before signing in.

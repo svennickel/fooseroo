@@ -18,6 +18,7 @@ export type MatchView = {
   timeoutsA: number
   timeoutsB: number
   goals: GoalEvent[] // running goal progression across all sets
+  timeouts: { team: Side; idx: number }[] // TIMEOUT actions in order (for read-aloud)
 }
 
 type RawAction = { team?: string; type?: string; time?: string }
@@ -44,6 +45,7 @@ export function parseMatchState(stateRaw: unknown, running: boolean): MatchView 
   const actions: RawAction[] = Array.isArray(state?.matchActions) ? state!.matchActions! : []
   const sets: { a: number; b: number }[] = []
   const goals: GoalEvent[] = []
+  const timeouts: { team: Side; idx: number }[] = []
   let a = 0, b = 0, set = 0
   for (let idx = 0; idx < actions.length; idx++) {
     const act = actions[idx]
@@ -54,6 +56,8 @@ export function parseMatchState(stateRaw: unknown, running: boolean): MatchView 
       if (team) goals.push({ team, a, b, label: team === 'A' ? a : b, t: parseTime(act?.time), set, idx })
     } else if (act?.type === 'GAME_FINISHED') {
       sets.push({ a, b }); a = 0; b = 0; set++
+    } else if (act?.type === 'TIMEOUT') {
+      if (team) timeouts.push({ team, idx })
     }
   }
   const current = running || a > 0 || b > 0 ? { a, b } : null
@@ -63,7 +67,8 @@ export function parseMatchState(stateRaw: unknown, running: boolean): MatchView 
     serve: side(state?.serve),
     timeoutsA: state?.timeoutsA ?? 0,
     timeoutsB: state?.timeoutsB ?? 0,
-    goals
+    goals,
+    timeouts
   }
 }
 

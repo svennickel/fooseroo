@@ -92,6 +92,27 @@ export function setWinLines(view: MatchView, n: SpeakNames, setIndex: number): [
   return [win, tally]
 }
 
+// announceMatchTimeout: "Auszeit für X."
+export function timeoutLine(view: MatchView, n: SpeakNames, timeoutIndex: number): string {
+  const t = view.timeouts[timeoutIndex]
+  return `Auszeit für ${spokenName(t.team === 'A' ? n.home : n.away)}.`
+}
+
+// announceMatchRecap / recapSetLine: periodic "Spielstand weiter" + current set.
+export function recapLine(view: MatchView, n: SpeakNames): string {
+  const { a: sa, b: sb } = setsWon(view)
+  const ord = setOrd(sa + sb + 1)
+  const ga = view.current?.a ?? 0
+  const gb = view.current?.b ?? 0
+  const a = spokenName(n.home), b = spokenName(n.away)
+  let line: string
+  if (ga > gb) line = `Im ${ord} Satz führt ${a} gegen ${b} mit ${ga} zu ${gb}.`
+  else if (gb > ga) line = `Im ${ord} Satz führt ${b} gegen ${a} mit ${gb} zu ${ga}.`
+  else if (ga === 0) line = `Im ${ord} Satz steht es zwischen ${a} und ${b} noch 0 zu 0.`
+  else line = `Im ${ord} Satz steht es zwischen ${a} und ${b} unentschieden mit ${ga} zu ${gb}.`
+  return joinParts(['Spielstand weiter', line])
+}
+
 // announceMatchDiff (undo/edit branch): "Korrektur." + the recomputed set score.
 export function correctionLine(view: MatchView, n: SpeakNames): string {
   return joinParts(['Korrektur.', currentScoreLine(view, n)])
