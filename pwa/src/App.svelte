@@ -7,6 +7,7 @@
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows } from './lib/match'
   import { encodeMatch } from './lib/share'
+  import { speak, cancelSpeech, speechSupported, acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from './lib/live'
   import MatchProgress from './lib/MatchProgress.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
@@ -99,6 +100,43 @@
   const view = $derived(selected ? parseMatchState(selected.state, selected.running) : null)
   const progress = $derived(view ? progressRows(view, !!selected?.running) : null)
 
+  // Read-aloud (Vorlesen) + wake lock for the live detail — the web counterparts of
+  // the app's LiveCommentary control and its keep-screen-on-while-live behaviour.
+  const speechOk = speechSupported()
+  let readAloud = $state(false)
+  try { readAloud = localStorage.getItem('fs_read') === '1' } catch { /* ignore */ }
+  let announceBaseline = true
+  let spokenGoals = 0, spokenSets = 0
+  function toggleRead() {
+    readAloud = !readAloud
+    try { localStorage.setItem('fs_read', readAloud ? '1' : '0') } catch { /* ignore */ }
+    if (readAloud) announceBaseline = true; else cancelSpeech()
+  }
+  // Announce new goals / finished sets as live updates arrive (diff vs. last spoken).
+  $effect(() => {
+    const v = view, on = readAloud, run = !!selected?.running, sel = selected
+    if (!v || !on || !run || !sel) return
+    const goals = v.goals.length, sets = v.sets.length
+    if (announceBaseline) {
+      spokenGoals = goals; spokenSets = sets; announceBaseline = false
+      speak(`Vorlesen aktiv. ${sel.homeName} gegen ${sel.awayName}. Es steht ${sel.setsHome} zu ${sel.setsAway} nach Sätzen.`)
+      return
+    }
+    if (goals > spokenGoals) {
+      for (const g of v.goals.slice(spokenGoals))
+        speak(`Tor ${g.team === 'A' ? sel.homeName : sel.awayName}. ${g.a} zu ${g.b}.`)
+      spokenGoals = goals
+    }
+    if (sets > spokenSets) {
+      spokenSets = sets
+      speak(`Satz beendet. Es steht ${sel.setsHome} zu ${sel.setsAway} nach Sätzen.`)
+    }
+  })
+  // Keep the screen awake while a live match detail is open (like the app).
+  $effect(() => {
+    if (selected?.running) acquireWakeLock(); else releaseWakeLock()
+  })
+
   // Match-detail URL: a group match gets the shareable token PATH
   // (fooseroo.app/m/<token>) — the same link the app opens (App Links), and a
   // reload restores the detail (the root 404 page forwards /m/<token> back in).
@@ -118,6 +156,7 @@
 
   function openMatch(m: MatchItem) {
     selected = m
+    announceBaseline = true; spokenGoals = 0; spokenSets = 0
     stopPoll(); stopListPoll()
     // Group matches are shareable → reflect the token in the URL so the link opens
     // the app and a reload keeps showing this detail. (Personal matches have no
@@ -128,7 +167,7 @@
     pollTimer = setInterval(refreshSelected, m.running ? 3000 : 6000)
   }
   function closeMatch() {
-    stopPoll(); selected = null
+    stopPoll(); cancelSpeech(); selected = null
     route = { type: 'home' }
     writeHomeUrl()
     startListPoll()
@@ -211,10 +250,15 @@
     addEventListener('beforeinstallprompt', onBip)
     const onInstalled = () => { showInstall = false; canInstall = false }
     addEventListener('appinstalled', onInstalled)
+    // Wake locks drop while the tab is hidden — re-acquire when visible again.
+    const onVis = () => reacquireWakeLockIfWanted()
+    document.addEventListener('visibilitychange', onVis)
     return () => {
       sub.subscription.unsubscribe()
       removeEventListener('beforeinstallprompt', onBip)
       removeEventListener('appinstalled', onInstalled)
+      document.removeEventListener('visibilitychange', onVis)
+      releaseWakeLock()
     }
   })
 
@@ -358,6 +402,12 @@
         <div class="hname b">{#if !selected.running && selected.setsAway > selected.setsHome}⭐ {selected.awayName}{:else}{selected.awayName}{/if}</div>
       </div>
       <div class="meta center">{fmtDate(selected.at)}{#if selected.category} · {selected.category}{/if}</div>
+
+      {#if selected.running && speechOk}
+        <button class="readbtn" class:on={readAloud} aria-pressed={readAloud} onclick={toggleRead}>
+          {readAloud ? '🔊  Vorlesen: an' : '🔈  Vorlesen: aus'}
+        </button>
+      {/if}
 
       {#if progress && progress.rows.length}
         <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
@@ -610,6 +660,12 @@
   /* retention notice: subtle, but clearly visible (privacy assurance) */
   .retention { color: var(--team-a); font-size: 13px; background: var(--surface);
     border: 1px solid var(--outline); border-radius: 10px; padding: 8px 10px; }
+  /* Read-aloud toggle on the live detail — muted when off, green when on (like the app) */
+  .readbtn { align-self: center; background: transparent; color: var(--on-surface-variant);
+    border: 1px solid var(--outline); border-radius: 999px; padding: 7px 16px; font-size: 14px;
+    font-weight: 600; cursor: pointer; }
+  .readbtn.on { color: var(--ok); border-color: var(--ok);
+    background: color-mix(in srgb, var(--ok) 14%, transparent); }
   .install { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between;
     gap: 8px; font-size: 13px; color: var(--on-surface); background: var(--surface);
     border: 1px solid var(--outline); border-radius: 12px; padding: 8px 12px; }
