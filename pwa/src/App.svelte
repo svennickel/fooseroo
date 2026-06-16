@@ -2,7 +2,8 @@
   import { onMount } from 'svelte'
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
-  import { parseRoute, resolveSharedMatch, joinWithCode, type SharedMatch, type Route } from './lib/shared'
+  import { parseRoute, resolveSharedMatch, joinWithCode, groupInvitePreview,
+    type SharedMatch, type Route, type InvitePreview } from './lib/shared'
   import { loadMatches, loadTraining, loadGroups, loadGroupRetention, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows } from './lib/match'
@@ -59,6 +60,9 @@
   let joinBusy = $state(false)
   let joinError = $state<'' | 'auth' | 'invalid' | 'throttled' | 'full' | 'error'>('')
   let pendingJoinCode = ''
+  // Invite preview (group name + retention) shown before joining, like the app.
+  let invitePreview = $state<InvitePreview | null>(null)
+  let previewTimer: ReturnType<typeof setTimeout> | null = null
 
   // "Install as app" hint (Android/Chrome via beforeinstallprompt; iOS Safari is
   // manual, since it has no such event). Hidden once installed or dismissed.
@@ -378,6 +382,21 @@
     maybeResolve()
   }
 
+  // Debounced invite preview while on the join route: resolve the code to the
+  // group's name + retention (no join, works signed-out) so the user sees what
+  // they're joining — identical to the app's invite.
+  $effect(() => {
+    const onJoin = route.type === 'join'
+    const code = joinCode
+    if (previewTimer) clearTimeout(previewTimer)
+    if (!onJoin) { invitePreview = null; return }
+    previewTimer = setTimeout(async () => {
+      const c = code.trim()
+      if (c.replace(/[^0-9A-Za-z]/g, '').length < 6) { invitePreview = null; return }
+      invitePreview = await groupInvitePreview(c)
+    }, 300)
+  })
+
   // Join a training group by its short code (server-throttled). Requires sign-in;
   // if signed out, remembers the code and retries right after authentication.
   async function attemptJoin(raw: string) {
@@ -521,17 +540,27 @@
 
   {:else if route.type === 'join'}
     <h2 class="jointitle">Gruppe beitreten</h2>
+    {#if invitePreview}
+      <div class="card invite">
+        <p>Du wurdest in die Trainingsgruppe <strong>{invitePreview.name}</strong> eingeladen.</p>
+        {#if invitePreview.retentionDays}
+          <p class="retention">🛡️ Ergebnisse in dieser Trainingsgruppe werden nach {invitePreview.retentionDays} Tagen automatisch gelöscht.</p>
+        {/if}
+      </div>
+    {/if}
     {#if !signedIn}
-      <p class="hint">Melde dich an, um {#if joinCode}der Gruppe beizutreten (Code {joinCode}){:else}einer Gruppe beizutreten{/if}.</p>
+      <p class="hint">Melde dich an, um {invitePreview ? `der Gruppe „${invitePreview.name}" beizutreten` : 'einer Trainingsgruppe beizutreten'}.</p>
       {@render authForm()}
       <button class="ghost small" onclick={goHome}>Abbrechen</button>
     {:else}
-      <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
+      {#if !invitePreview}
+        <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
+      {/if}
       <input bind:value={joinCode} placeholder="Code (z. B. K7QF-3MZP)" autocomplete="off"
              autocapitalize="characters"
              onkeydown={(e) => { if (e.key === 'Enter' && !joinBusy && joinCode.trim()) attemptJoin(joinCode) }} />
       <button onclick={() => attemptJoin(joinCode)} disabled={joinBusy || !joinCode.trim()}>
-        {joinBusy ? 'Trete bei…' : 'Beitreten'}
+        {joinBusy ? 'Trete bei…' : invitePreview ? `„${invitePreview.name}" beitreten` : 'Beitreten'}
       </button>
       {#if joinError && joinError !== 'auth'}<p class="err">{joinErrorText(joinError)}</p>{/if}
       <button class="ghost small" onclick={goHome}>Abbrechen</button>
@@ -805,6 +834,7 @@
   .sets.running { color: var(--team-a); }
   .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
   .gateinfo p { margin: 0 0 8px; }
+  .invite p { margin: 0 0 8px; } .invite p:last-child { margin-bottom: 0; }
   .gatebtns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .jointitle { font-size: 20px; margin: 4px 0 2px; }
   /* retention notice: subtle, but clearly visible (privacy assurance) */
