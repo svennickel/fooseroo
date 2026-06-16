@@ -144,7 +144,11 @@
     prevRowCount = rows.length
     prevRows = rows
 
-    scrollXAxis = 0; flinging = false
+    // Keep the user's horizontal scroll position across data updates (the detail
+    // polls every few seconds; resetting here made the view "jump back" to the
+    // newest goal). It starts at 0 (newest, on mount) and is clamped to the new
+    // width in draw(); only a fling in progress is cancelled.
+    flinging = false
     sync(); schedule()
   }
 
