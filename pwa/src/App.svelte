@@ -404,7 +404,8 @@
     {:else}
       <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
       <input bind:value={joinCode} placeholder="Code (z. B. K7QF-3MZP)" autocomplete="off"
-             autocapitalize="characters" />
+             autocapitalize="characters"
+             onkeydown={(e) => { if (e.key === 'Enter' && !joinBusy && joinCode.trim()) attemptJoin(joinCode) }} />
       <button onclick={() => attemptJoin(joinCode)} disabled={joinBusy || !joinCode.trim()}>
         {joinBusy ? 'Trete bei…' : 'Beitreten'}
       </button>
@@ -419,11 +420,6 @@
         <button class="ghost small" onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
         <button class="ghost small" onclick={signOut}>Abmelden</button>
       </span>
-    </div>
-
-    <div class="tabs">
-      <button class="tab" class:active={tab === 'matches'} onclick={() => (tab = 'matches')}>⚪ Matches</button>
-      <button class="tab" class:active={tab === 'training'} onclick={() => (tab = 'training')}>⏱️ Training</button>
     </div>
 
     <div class="filters">
@@ -513,14 +509,32 @@
   {/if}
 </main>
 
+<!-- Bottom navigation between Matches & Training — like the native app (the Liga
+     area is intentionally absent from the web version). Icons mirror the app's
+     ic_matches_24 (plain foosball ring) and ic_mode_24 (history). -->
+{#if signedIn && route.type === 'home' && !selected}
+  <nav class="bottomnav">
+    <button class="navitem" class:active={tab === 'matches'} onclick={() => (tab = 'matches')} aria-label="Matches">
+      <span class="naicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/></svg></span>
+      <span class="nalabel">Matches</span>
+    </button>
+    <button class="navitem" class:active={tab === 'training'} onclick={() => (tab = 'training')} aria-label="Training">
+      <span class="naicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.26,3C8.17,2.86 4,6.95 4,12L2.21,12c-0.45,0 -0.67,0.54 -0.35,0.85l2.79,2.8c0.2,0.2 0.51,0.2 0.71,0l2.79,-2.8c0.31,-0.31 0.09,-0.85 -0.36,-0.85L6,12c0,-3.9 3.18,-7.05 7.1,-7 3.72,0.05 6.85,3.18 6.9,6.9 0.05,3.91 -3.1,7.1 -7,7.1 -1.61,0 -3.1,-0.55 -4.28,-1.48 -0.4,-0.31 -0.96,-0.28 -1.32,0.08 -0.42,0.42 -0.39,1.13 0.08,1.49C9,20.29 10.91,21 13,21c5.05,0 9.14,-4.17 9,-9.26 -0.13,-4.69 -4.05,-8.61 -8.74,-8.74zM12.75,8c-0.41,0 -0.75,0.34 -0.75,0.75v3.68c0,0.35 0.19,0.68 0.49,0.86l3.12,1.85c0.36,0.21 0.82,0.09 1.03,-0.26 0.21,-0.36 0.09,-0.82 -0.26,-1.03l-2.88,-1.71v-3.4c0,-0.4 -0.34,-0.74 -0.75,-0.74z"/></svg></span>
+      <span class="nalabel">Training</span>
+    </button>
+  </nav>
+{/if}
+
 {#snippet authForm()}
   {#if step === 'email'}
     <input type="email" inputmode="email" autocomplete="email"
-           bind:value={email} placeholder="E-Mail-Adresse" />
+           bind:value={email} placeholder="E-Mail-Adresse"
+           onkeydown={(e) => { if (e.key === 'Enter' && !busy && email.includes('@')) send() }} />
     <button onclick={send} disabled={busy || !email.includes('@')}>Code per E-Mail senden</button>
   {:else}
     <p class="hint">Code aus der E-Mail an <strong>{email}</strong>:</p>
-    <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder="Code" />
+    <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder="Code"
+           onkeydown={(e) => { if (e.key === 'Enter' && !busy && code.trim()) verify() }} />
     <button onclick={verify} disabled={busy || !code.trim()}>Anmelden</button>
     <button class="ghost" onclick={() => { step = 'email'; code = '' }}>Andere E-Mail</button>
   {/if}
@@ -565,7 +579,7 @@
   :global(body) { margin: 0; font-family: system-ui, -apple-system, "Roboto", sans-serif;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
     background-attachment: fixed; color: var(--on-surface); }
-  main { max-width: 440px; margin: 0 auto; padding: 28px 16px 40px;
+  main { max-width: 440px; margin: 0 auto; padding: 28px 16px 96px;
     display: flex; flex-direction: column; gap: 14px; }
   h1 { font-size: 26px; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; }
   .logo { width: 30px; height: 30px; border-radius: 7px; }
@@ -602,13 +616,21 @@
   button.small { padding: 6px 10px; font-size: 13px; }
   .list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px; }
 
-  /* Matches / Training tabs — segmented control like the app's areas */
-  .tabs { display: flex; gap: 6px; background: var(--surface-variant); padding: 4px;
-    border-radius: 14px; }
-  .tab { flex: 1; background: transparent; color: var(--on-surface-variant); font-weight: 700;
-    font-size: 15px; padding: 9px 8px; border-radius: 10px; }
-  .tab.active { background: var(--surface); color: var(--team-a);
-    box-shadow: 0 1px 3px rgba(0,0,0,.12); }
+  /* Bottom navigation (Matches / Training) — Material-3 style like the app */
+  .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
+    width: 100%; max-width: 440px; box-sizing: border-box;
+    display: flex; justify-content: space-around; align-items: stretch;
+    background: var(--surface); border-top: 1px solid var(--outline); z-index: 50;
+    padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .navitem { flex: 1; background: transparent; border: 0; cursor: pointer; padding: 4px 0;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: var(--on-surface-variant); font: inherit; }
+  .naicon { display: flex; align-items: center; justify-content: center;
+    width: 56px; height: 30px; border-radius: 16px; transition: background .15s; }
+  .naicon svg { width: 24px; height: 24px; display: block; }
+  .nalabel { font-size: 12px; font-weight: 600; }
+  .navitem.active { color: var(--team-a); }
+  .navitem.active .naicon { background: color-mix(in srgb, var(--team-a) 16%, transparent); }
 
   .filters { display: flex; flex-wrap: wrap; gap: 8px; }
   .filters select { flex: 1; min-width: 120px; padding: 10px; border-radius: 10px;
