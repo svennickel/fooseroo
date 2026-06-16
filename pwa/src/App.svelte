@@ -554,7 +554,7 @@
       <div class="fchipwrap">
         <button class="fchip" aria-haspopup="menu" onclick={() => (showDatePicker = !showDatePicker)}>
           <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
-          <span class="fct">{dayLabel(dayFilter)}{#if dayCount(dayFilter)} ({dayCount(dayFilter)}){/if}</span>
+          <span class="fct">{dayLabel(dayFilter)}{dayCount(dayFilter) ? ` (${dayCount(dayFilter)})` : ''}</span>
           <span class="caret">▾</span>
         </button>
         {#if showDatePicker}
