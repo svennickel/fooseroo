@@ -53,15 +53,17 @@
     await saveMatchRow({ groupId: ctx, ts, teamA: labelA, teamB: labelB,
       category: category.trim() || null, state: score, running: run })
   }
-  // Apply a change: update state, broadcast live, debounce-persist the running row.
-  function change(next: ScoreState | null) { if (!next) return; score = next; pushLive(); scheduleSave() }
+  // Apply a change. While live (new / running): broadcast + debounce-persist. While
+  // editing a FINISHED match: change locally only — persist on explicit "Speichern"
+  // so "Abbrechen" truly reverts (and never deletes the match).
+  function change(next: ScoreState | null) { if (!next) return; score = next; if (running) { pushLive(); scheduleSave() } }
   const goal = (t: Team) => change(applyAction(score, t, 'GOAL'))
   const serve = (t: Team) => change(applyAction(score, t, 'SERVE'))
   const timeout = (t: Team) => change(applyAction(score, t, 'TIMEOUT'))
   const reset = (t: Team) => change(applyAction(score, t, 'RESET'))
   const finishSet = () => change(applyAction(score, 'NONE', 'GAME_FINISHED'))
-  const doUndo = () => { score = undo(score); pushLive(); scheduleSave() }
-  const doSwap = () => { score = swapSides(score); pushLive(); scheduleSave() }
+  const doUndo = () => { score = undo(score); if (running) { pushLive(); scheduleSave() } }
+  const doSwap = () => { score = swapSides(score); if (running) { pushLive(); scheduleSave() } }
   function onName() { if (running) pushLive(); scheduleSave() }
 
   async function start() {
@@ -116,7 +118,8 @@
         <button class="ghost small" onclick={cancel}>Schließen</button>
       </div>
 
-      <!-- Hero: names + current-set score + sets-won -->
+      <!-- Hero: names + the SET score (like the app); current-set goals live only in
+           the Verlauf LIVE row below — no separate goal counter. -->
       <div class="hero">
         <div class="side a">
           {#if editName === 'a'}
@@ -125,9 +128,8 @@
           {:else}
             <button class="nm a" onclick={() => (editName = 'a')}>{labelA} ✎</button>
           {/if}
-          <div class="setsw">Sätze {sets.a}</div>
         </div>
-        <div class="cur">{score.goalsA} : {score.goalsB}</div>
+        <div class="cur">{sets.a} : {sets.b}</div>
         <div class="side b">
           {#if editName === 'b'}
             <input class="nin" bind:value={teamB} onblur={() => { editName = null; onName() }}
@@ -135,7 +137,6 @@
           {:else}
             <button class="nm b" onclick={() => (editName = 'b')}>{labelB} ✎</button>
           {/if}
-          <div class="setsw">Sätze {sets.b}</div>
         </div>
       </div>
 
@@ -169,10 +170,11 @@
         {#if running}
           <button class="primary" onclick={finish}>Beenden</button>
           <button class="ghost small" onclick={park}>Parken</button>
+          <button class="danger small" onclick={discard}>Verwerfen</button>
         {:else}
           <button class="primary" onclick={saveEdited}>Speichern</button>
+          <button class="ghost small" onclick={cancel}>Abbrechen</button>
         {/if}
-        <button class="danger small" onclick={discard}>Verwerfen</button>
       </div>
     {/if}
   </div>

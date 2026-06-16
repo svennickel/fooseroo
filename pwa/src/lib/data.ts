@@ -11,6 +11,26 @@ export async function loadGroups(): Promise<Group[]> {
     ({ id: g.id, name: g.name ?? '—', ownerId: g.owner_id ?? null }))
 }
 
+// The context's match categories as synced by the app (app_config, key
+// "match_categories", group-prefixed) — NOT just the ones that already have a
+// match. Mirrors CloudConfig so the web's category picker offers exactly the same
+// list (e.g. "Rangliste" before its first match). Best-effort → [] on any error.
+export async function loadCategories(ctx: Ctx = null): Promise<string[]> {
+  try {
+    const key = `${ctx ? `g:${ctx}:` : ''}match_categories`
+    let q = supabase.from('app_config').select('value').eq('key', key)
+    q = ctx == null ? q.is('group_id', null) : q.eq('group_id', ctx)
+    const { data, error } = await q
+    if (error || !data) return []
+    const out = new Set<string>()
+    for (const row of data as { value: unknown }[]) {
+      const v = row.value
+      if (Array.isArray(v)) for (const s of v) if (typeof s === 'string' && s.trim()) out.add(s)
+    }
+    return [...out]
+  } catch { return [] }
+}
+
 // My per-group display name (group_names: one row per group+user), or null if unset.
 // Best-effort — never throws (the UI just shows "festlegen" if it can't read).
 export async function myGroupName(groupId: string): Promise<string | null> {

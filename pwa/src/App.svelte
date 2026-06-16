@@ -4,7 +4,7 @@
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, joinWithCode, groupInvitePreview,
     type SharedMatch, type Route, type InvitePreview } from './lib/shared'
-  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, winnerSide, formatElapsed,
+  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows, setsWon } from './lib/match'
   import { watchLiveMatch, liveChannelId } from './lib/livematch'
@@ -55,6 +55,7 @@
   // Own (personal) matches list
   let matches = $state<MatchItem[]>([])
   let matchesState = $state<'idle' | 'loading' | 'error'>('idle')
+  let cloudCategories = $state<string[]>([]) // synced category list (app_config), per context
   let training = $state<TrainingItem[]>([])
 
   // Context (Dein Konto / a group), category + day filters — like the app.
@@ -92,7 +93,9 @@
   let catFilter = $state<string>('')  // '' = all categories
   let dayFilter = $state<string>('')  // '' = all days; else a yyyy-mm-dd-ish key
   const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
-  const categories = $derived([...new Set(matches.map((m) => m.category).filter(Boolean))] as string[])
+  // Merge the synced category list (app_config, incl. ones without a match yet, like
+  // "Rangliste") with any categories present on loaded matches.
+  const categories = $derived([...new Set([...cloudCategories, ...matches.map((m) => m.category).filter(Boolean)])] as string[])
   const days = $derived([...new Set(matches.map((m) => dayOf(m.at)))])
   // Player-name suggestions for the match editor (split team labels by " & ").
   const playerSuggestions = $derived([...new Set(
@@ -482,8 +485,8 @@
   async function reloadData(silent = false) {
     if (!silent) matchesState = 'loading'
     try {
-      const [m, t] = await Promise.all([loadMatches(ctx), loadTraining(ctx)])
-      matches = m; training = t; matchesState = 'idle'
+      const [m, t, cloudCats] = await Promise.all([loadMatches(ctx), loadTraining(ctx), loadCategories(ctx)])
+      matches = m; training = t; cloudCategories = cloudCats; matchesState = 'idle'
       // Pre-select the newest day that has a match (in any category) unless the
       // current day is still valid (e.g. from the URL or a manual pick this session).
       const mdays = [...new Set(m.map((x) => dayOf(x.at)))]
