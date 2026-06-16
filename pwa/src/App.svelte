@@ -375,7 +375,7 @@
 </script>
 
 <main>
-  <h1><img class="logo" src="icon.png" alt="" /> Fooseroo <span class="tag">Web</span></h1>
+  <h1><img class="logo" src="icon.png" alt="" /> <span class="brand">Fooseroo</span> <span class="tag">Web</span></h1>
 
   {#if showInstall}
     <div class="install">
@@ -483,7 +483,6 @@
         </select>
       {/if}
       <select bind:value={dayFilter}>
-        <option value="">Alle Tage</option>
         {#each days as d}<option value={d}>{dayLabel(d)}</option>{/each}
       </select>
     </div>
@@ -629,10 +628,14 @@
   :global(body) { margin: 0; font-family: system-ui, -apple-system, "Roboto", sans-serif;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
     background-attachment: fixed; color: var(--on-surface); }
-  main { max-width: 440px; margin: 0 auto; padding: 28px 16px 96px;
+  main { max-width: 440px; margin: 0 auto;
+    padding: calc(20px + env(safe-area-inset-top, 0px)) 16px 96px;
     display: flex; flex-direction: column; gap: 14px; }
-  h1 { font-size: 26px; margin: 0 0 6px; display: flex; align-items: center; gap: 10px; }
-  .logo { width: 30px; height: 30px; border-radius: 7px; }
+  /* Logo + wordmark like the app's branding: round logo, "Fooseroo" bold in the
+     brand blue, same family/colour, similar position. */
+  h1 { font-size: 28px; margin: 0 0 6px; display: flex; align-items: center; gap: 11px; }
+  .logo { width: 36px; height: 36px; border-radius: 50%; }
+  .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.2px; }
   .tag { font-size: 12px; background: var(--surface-variant); color: var(--on-surface-variant);
     padding: 2px 8px; border-radius: 8px; vertical-align: middle; font-weight: 600; }
   p { margin: 0; line-height: 1.5; }

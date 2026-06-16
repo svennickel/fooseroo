@@ -175,7 +175,6 @@
   <footer>
     © Sven Nickel ·
     <a href="https://play.google.com/store/apps/details?id=de.snickel.fooser" data-i18n="footerLink"></a>
-    · <a href="/app/" data-i18n="webVersion"></a>
   </footer>
 
   <script>
@@ -241,15 +240,27 @@
       b.addEventListener('click', function () { applyLang(b.dataset.lang); });
     });
 
-    // Share links are readable paths (/ntfv/liga/254/...) or older query forms
-    // (?spiel=16054). The 404 page forwards the path here as ?deeplink=. On the
-    // web we can't show the content itself – surface a hint that it opens in-app.
+    // Deep links: the app (if installed) opens fooseroo.app links directly. Otherwise
+    // the 404 page forwards the original path here as ?go=<path>. We then offer BOTH
+    // tiles (Play Store / web app) and route the WEB badge to the matching in-app
+    // view, so the original link is carried through and processed by the web version.
+    // (Older league links arrive as ?deeplink= / ?spiel=… and just show the hint.)
     (function () {
       const params = new URLSearchParams(location.search);
-      const isShare = ['spiel', 'team', 'liga', 'deeplink'].some(function (k) {
+      const go = params.get('go') || '';
+      const isShare = go || ['spiel', 'team', 'liga', 'deeplink'].some(function (k) {
         return params.has(k);
       });
       if (isShare) document.getElementById('shareNote').classList.add('visible');
+
+      // Carry a supported deep link (match / training / group join) into the web app.
+      let webHref = '/app/';
+      const mt = go.match(/^\/(m|t)\/([0-9A-Za-z]+)/);
+      const grp = go.match(/^\/g\/([0-9A-Za-z-]+)/);
+      if (mt) webHref = '/app/#/' + mt[1] + '/' + mt[2];
+      else if (grp) webHref = '/app/#/g/' + grp[1];
+      const wb = document.querySelector('.webbadge');
+      if (wb) wb.setAttribute('href', webHref);
     })();
   </script>
 </body>

@@ -8,23 +8,13 @@
   <script>
     // GitHub Pages has no server-side router. With the app installed and its App
     // Links verified, Android opens these fooseroo.app URLs directly in the app and
-    // this page is never reached. Otherwise:
-    //  - shared match/training links (/m/<token>, /t/<token>) open the WEB VERSION
-    //    (the PWA at /app/), which shows the shared content after sign-in,
-    //  - other deep links (league paths) fall back to the homepage hint.
+    // this page is never reached. Otherwise (no app / iOS / desktop) we forward the
+    // ORIGINAL link to the landing page (the tiles), so the visitor can choose the
+    // Play Store OR the web version — and the web tile carries this link through and
+    // processes it. The landing decodes ?go= into the matching in-app view.
     (function () {
-      var share = location.pathname.match(/^\/(m|t)\/([0-9A-Za-z]+)\/?$/);
-      if (share) {
-        location.replace('/app/#/' + share[1] + '/' + share[2]);
-        return;
-      }
-      // Training-group join links (/g/<CODE>) open the web version's join flow.
-      var join = location.pathname.match(/^\/g\/([0-9A-Za-z-]+)\/?$/);
-      if (join) {
-        location.replace('/app/#/g/' + join[1]);
-        return;
-      }
-      location.replace('/?deeplink=' + encodeURIComponent(location.pathname + location.search));
+      var p = location.pathname + location.search;
+      location.replace('/?go=' + encodeURIComponent(p));
     })();
   </script>
 </head>
