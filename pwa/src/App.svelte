@@ -23,6 +23,8 @@
   let showSettings = $state(false)
   let showAccount = $state(false)
   let showCtxMenu = $state(false)
+  let showDatePicker = $state(false)
+  let showCatPicker = $state(false)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -80,6 +82,10 @@
   const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
   const categories = $derived([...new Set(matches.map((m) => m.category).filter(Boolean))] as string[])
   const days = $derived([...new Set(matches.map((m) => dayOf(m.at)))])
+  // Counts shown in the date/category pickers (like the app): matches per day (all
+  // categories) and per category on the selected day.
+  const dayCount = (d: string) => matches.filter((m) => dayOf(m.at) === d).length
+  const catCount = (c: string) => matches.filter((m) => m.category === c && dayOf(m.at) === dayFilter).length
   const shownMatches = $derived(matches.filter((m) =>
     (catFilter === '' || m.category === catFilter) && (dayFilter === '' || dayOf(m.at) === dayFilter)))
   const shownTraining = $derived(training.filter((t) => dayFilter === '' || dayOf(t.at) === dayFilter))
@@ -213,6 +219,8 @@
 
   const fmtDate = (at: number) =>
     new Date(at).toLocaleDateString(undefined, { day: '2-digit', month: '2-digit', year: 'numeric' })
+  const fmtTime = (at: number) =>
+    new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
   const joinErrorText = (e: string) =>
     e === 'invalid' ? 'Code ungültig, deaktiviert oder abgelaufen.'
@@ -543,14 +551,42 @@
       </div>
     {:else}
     <div class="filters">
+      <div class="fchipwrap">
+        <button class="fchip" aria-haspopup="menu" onclick={() => (showDatePicker = !showDatePicker)}>
+          <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+          <span class="fct">{dayLabel(dayFilter)}{#if dayCount(dayFilter)} ({dayCount(dayFilter)}){/if}</span>
+          <span class="caret">▾</span>
+        </button>
+        {#if showDatePicker}
+          <button class="menu-catch" aria-label="Schließen" onclick={() => (showDatePicker = false)}></button>
+          <div class="menu picker" role="menu">
+            {#each days as d}
+              <button role="menuitem" class:sel={d === dayFilter} onclick={() => { showDatePicker = false; dayFilter = d }}>
+                <span>{d === dayFilter ? '✓ ' : ''}{dayLabel(d)}</span><span class="cnt">{dayCount(d)}</span>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
       {#if tab === 'matches'}
-        <select bind:value={catFilter}>
-          {#each categories as c}<option value={c}>{c}</option>{/each}
-        </select>
+        <div class="fchipwrap">
+          <button class="fchip" aria-haspopup="menu" onclick={() => (showCatPicker = !showCatPicker)}>
+            <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z"/></svg>
+            <span class="fct">{catFilter || 'Kategorie'}</span>
+            <span class="caret">▾</span>
+          </button>
+          {#if showCatPicker}
+            <button class="menu-catch" aria-label="Schließen" onclick={() => (showCatPicker = false)}></button>
+            <div class="menu picker" role="menu">
+              {#each categories as c}
+                <button role="menuitem" class:sel={c === catFilter} onclick={() => { showCatPicker = false; catFilter = c }}>
+                  <span>{c === catFilter ? '✓ ' : ''}{c}</span><span class="cnt">{catCount(c)}</span>
+                </button>
+              {/each}
+            </div>
+          {/if}
+        </div>
       {/if}
-      <select bind:value={dayFilter}>
-        {#each days as d}<option value={d}>{dayLabel(d)}</option>{/each}
-      </select>
     </div>
 
     {#if retention}
@@ -578,7 +614,7 @@
                   <span class="team">{#if !m.running && w === 'away'}⭐ {/if}{m.awayName}</span>
                 </div>
                 <div class="metarow">
-                  <span class="meta">{dayLabel(dayOf(m.at))}{#if m.category} · {m.category}{/if}</span>
+                  <span class="meta">{fmtTime(m.at)}</span>
                   {#if mv.sets.length || (m.running && mv.current)}
                     <span class="chips">
                       {#each mv.sets as s}<span class="setchip">{s.a}:{s.b}</span>{/each}
@@ -758,11 +794,14 @@
   .card { background: var(--surface); border: 1px solid var(--outline); border-radius: 16px;
     padding: 16px; box-shadow: 0 1px 3px rgba(0,0,0,.06); }
   .meta { color: var(--on-surface-variant); font-size: 13px; }
-  .score { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .team { flex: 1; font-weight: 600; }
-  .team:last-child { text-align: right; }
-  .team.home { text-align: right; }
-  .sets { font-size: 18px; font-weight: 800; white-space: nowrap; }
+  .score { display: flex; align-items: center; }
+  .team { flex: 1; min-width: 0; font-weight: 400; font-size: 14px; color: var(--on-surface);
+    padding: 0 8px; overflow: hidden; text-overflow: ellipsis;
+    display: -webkit-box; -webkit-line-clamp: 2; line-clamp: 2; -webkit-box-orient: vertical; }
+  .team.home { text-align: right; }      /* Team A flanks the score from the left */
+  .team:last-child { text-align: left; }  /* Team B flanks the score from the right */
+  .sets { font-size: 17px; font-weight: 700; white-space: nowrap; padding: 0 6px;
+    color: var(--on-surface); }
   .sets.running { color: var(--team-a); }
   .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
   .gateinfo p { margin: 0 0 8px; }
@@ -800,24 +839,32 @@
   .navitem.active .naicon { background: color-mix(in srgb, var(--team-a) 16%, transparent); }
 
   .filters { display: flex; flex-wrap: wrap; gap: 8px; }
-  .filters select { flex: 1; min-width: 120px; padding: 10px; border-radius: 10px;
-    border: 1px solid var(--outline); background: var(--surface); color: var(--on-surface);
-    font-size: 14px; }
+  /* Date / category as Material Assist chips with a picker (like the app). */
+  .fchipwrap { position: relative; }
+  .fchip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 8px; padding: 7px 12px; font-size: 14px;
+    color: var(--on-surface); cursor: pointer; max-width: 220px; }
+  .fci { width: 18px; height: 18px; flex: 0 0 auto; color: var(--on-surface-variant); }
+  .fct { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .fchip .caret { color: var(--on-surface-variant); }
+  .picker { left: 0; right: auto; min-width: 200px; max-height: 60vh; overflow-y: auto; }
+  .picker button { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+  .picker .cnt { color: var(--on-surface-variant); font-size: 13px; }
   .trow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
   .trow .meta { margin-left: 8px; }
   .tval { font-weight: 700; white-space: nowrap; }
   .ok { color: var(--ok); } .bad { color: var(--bad); }
 
-  /* clickable list cards */
+  /* clickable list cards — native bg_table_card: 10dp padding */
   .card-btn { width: 100%; text-align: left; color: inherit; font: inherit; font-weight: 400;
-    display: block; }
+    display: block; padding: 10px; }
   .card-btn:active { background: var(--surface-variant); }
 
-  /* live badge — red throbbing dot like LiveDotView */
-  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--live); font-weight: 700;
-    font-size: 13px; letter-spacing: .12em; margin-bottom: 6px; }
-  .live.big { font-size: 14px; justify-content: center; margin-bottom: 0; }
-  .dot { width: 11px; height: 11px; border-radius: 50%; background: var(--live); display: inline-block;
+  /* live badge — red throbbing dot like LiveDotView, centred on top */
+  .live { display: flex; justify-content: center; align-items: center; gap: 6px; color: var(--live);
+    font-weight: 700; font-size: 13px; letter-spacing: .12em; margin-bottom: 4px; }
+  .live.big { font-size: 14px; margin-bottom: 0; }
+  .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--live); display: inline-block;
     animation: pulse 1.5s infinite; }
   @keyframes pulse { 0% { transform: scale(1); opacity: 1 } 60% { transform: scale(1.45); opacity: .35 }
     100% { transform: scale(1); opacity: 1 } }
@@ -832,10 +879,11 @@
   .hname.b { color: var(--team-b); text-align: left; }
   .hsets { font-size: 44px; font-weight: 800; padding: 0 10px; line-height: 1; }
   .setchip { background: var(--surface-variant); color: var(--on-surface-variant);
-    border-radius: 8px; padding: 2px 10px; font-size: 13px; font-weight: 600; }
-  .setchip.cur { background: transparent; border: 1.5px solid var(--live); color: var(--live); }
-  /* match-tile meta line: date/category on the left, set chips on the right */
-  .metarow { display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    margin-top: 8px; flex-wrap: wrap; }
-  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+    border-radius: 8px; padding: 2px 8px; font-size: 12px; font-weight: 500; }
+  .setchip.cur { background: transparent; border: 1.5px solid var(--live); color: var(--live);
+    font-weight: 700; }
+  /* match-tile meta line: kickoff time, then the per-set chips (native order). */
+  .metarow { display: flex; align-items: center; gap: 10px; margin-top: 8px; }
+  .metarow .meta { flex: 0 0 auto; }
+  .chips { flex: 1; display: flex; flex-wrap: wrap; gap: 6px; }
 </style>
