@@ -529,11 +529,11 @@
 
   // Already a member + signed in → just switch to that group, skip the join step.
   // Reactive to `groups` too, so it still fires if memberships load after the
-  // preview resolved. (Matches by name; the invite preview carries no id.)
+  // preview resolved. Matches by the group id from group_invite_preview (reliable).
   $effect(() => {
-    if (route.type !== 'join' || !signedIn || !invitePreview) return
-    const want = invitePreview.name.trim().toLowerCase()
-    const mine = groups.find((g) => g.name.trim().toLowerCase() === want)
+    if (route.type !== 'join' || !signedIn || !invitePreview?.id) return
+    const id = invitePreview.id
+    const mine = groups.find((g) => g.id === id)
     if (!mine) return
     invitePreview = null; joinCode = ''; route = { type: 'home' }
     try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }

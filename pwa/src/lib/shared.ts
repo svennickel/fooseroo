@@ -96,15 +96,15 @@ export type JoinResult =
 // Resolve a join code to the group's name + retention WITHOUT joining (and without
 // membership), so the invite view can show "Join «Name» — results auto-deleted after
 // N days" before joining. Mirrors the Android invite preview. null = invalid/unknown.
-export type InvitePreview = { name: string; retentionDays: number | null; retentionTz: string | null }
+export type InvitePreview = { id: string | null; name: string; retentionDays: number | null; retentionTz: string | null }
 export async function groupInvitePreview(code: string): Promise<InvitePreview | null> {
   try {
     const { data, error } = await supabase.rpc('group_invite_preview', { p_code: code })
     if (error) return null
     const row = (Array.isArray(data) ? data[0] : data) as
-      { name?: string; retention_days?: number | null; retention_tz?: string | null } | null
+      { id?: string; name?: string; retention_days?: number | null; retention_tz?: string | null } | null
     if (!row || !row.name) return null
-    return { name: row.name, retentionDays: row.retention_days ?? null, retentionTz: row.retention_tz ?? null }
+    return { id: row.id ?? null, name: row.name, retentionDays: row.retention_days ?? null, retentionTz: row.retention_tz ?? null }
   } catch {
     return null
   }
