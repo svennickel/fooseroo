@@ -16,6 +16,7 @@
   import Settings from './lib/Settings.svelte'
   import Account from './lib/Account.svelte'
   import MatchProgress from './lib/MatchProgress.svelte'
+  import MatchEditor from './lib/MatchEditor.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
@@ -34,6 +35,10 @@
   let entitled = $state<boolean | null>(null)
   let userEmail = $state<string | null>(null)
   let myUserId = $state<string | null>(null)
+  // Match scoring editor (new / edit), overlay.
+  let matchEditor = $state<{ mode: 'new' | 'edit'; initial: MatchItem | null } | null>(null)
+  const defaultCategory = (typeof navigator !== 'undefined' && navigator.language?.startsWith('en')) ? 'Free play' : 'Freies Spiel'
+  function onMatchSaved() { matchEditor = null; reloadData(true) }
   let ready = $state(false)
 
   // Auth form
@@ -89,6 +94,10 @@
   const dayOf = (at: number) => new Date(at).toISOString().slice(0, 10)
   const categories = $derived([...new Set(matches.map((m) => m.category).filter(Boolean))] as string[])
   const days = $derived([...new Set(matches.map((m) => dayOf(m.at)))])
+  // Player-name suggestions for the match editor (split team labels by " & ").
+  const playerSuggestions = $derived([...new Set(
+    matches.flatMap((m) => [m.homeName, m.awayName]).flatMap((l) => (l || '').split(' & '))
+      .map((s) => s.trim()).filter((s) => s && s !== '–'))])
   // Counts shown in the date/category pickers (like the app): matches per day (all
   // categories) and per category on the selected day.
   const dayCount = (d: string) => matches.filter((m) => dayOf(m.at) === d).length
@@ -631,7 +640,10 @@
   {#if selected && view}
     <div class="detail-top">
       <button class="ghost small back" onclick={closeMatch}>← Zurück</button>
-      {#if ctx}<button class="ghost small share" onclick={shareMatch}>Teilen</button>{/if}
+      <div class="dt-right">
+        {#if ctx}<button class="ghost small share" onclick={shareMatch}>Teilen</button>{/if}
+        <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>Bearbeiten</button>
+      </div>
     </div>
     {#if shareNote}<div class="share-note">{shareNote}</div>{/if}
     <div class="detail">
@@ -774,6 +786,7 @@
     {/if}
 
     {#if tab === 'matches'}
+      <button class="newmatch" onclick={() => (matchEditor = { mode: 'new', initial: null })}>＋ Neues Match</button>
       {#if matchesState === 'loading'}
         <p class="hint">Lädt…</p>
       {:else if matchesState === 'error'}
@@ -851,6 +864,11 @@
   <Account {signedIn} {userEmail} {groups} {myUserId} onClose={() => (showAccount = false)}
            onJoin={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}
            onGroupsChanged={refreshGroupsAfterChange} />
+{/if}
+{#if matchEditor}
+  <MatchEditor mode={matchEditor.mode} {ctx} {myUserId} initial={matchEditor.initial}
+               nameSuggestions={playerSuggestions} categorySuggestions={categories} {defaultCategory}
+               onClose={() => (matchEditor = null)} onSaved={onMatchSaved} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
@@ -1053,7 +1071,11 @@
   @keyframes pulse { 0% { transform: scale(1); opacity: 1 } 60% { transform: scale(1.45); opacity: .35 }
     100% { transform: scale(1); opacity: 1 } }
 
+  /* new-match button atop the matches list */
+  .newmatch { background: var(--team-a); color: var(--on-accent); border: 0; border-radius: 12px;
+    padding: 12px 14px; font-size: 15px; font-weight: 800; cursor: pointer; align-self: stretch; }
   /* match detail */
+  .dt-right { display: flex; align-items: center; gap: 8px; }
   .detail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .back { align-self: flex-start; }
   .share-note { margin-top: 6px; font-size: 13px; color: var(--on-surface-variant); text-align: right; }
