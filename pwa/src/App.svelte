@@ -970,15 +970,19 @@
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
     color: var(--on-surface); }
   main { max-width: 440px; margin: 0 auto;
-    padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 96px;
+    padding: 0 16px 96px;   /* top spacing comes from the sticky .topbar below */
     display: flex; flex-direction: column; gap: 14px; }
   /* Logo + wordmark like the app's branding: large round logo, "Fooseroo" bold in
      the brand blue, same family/colour, similar position. */
   h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
   .logo { width: 48px; height: 48px; border-radius: 50%; }
   .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.3px; }
-  /* Top bar with the three-dot overflow menu (top-right), like the app. */
-  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  /* Top bar with the three-dot overflow menu (top-right), like the app. Sticky at the
+     top (like the fixed bottom nav) with a solid background incl. the status-bar
+     safe area, so it stays put and content scrolls UNDER it instead of past it. */
+  .topbar { position: sticky; top: 0; z-index: 40; background: var(--bg);
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin: 0 -16px; padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 10px; }
   .menuwrap { position: relative; flex: 0 0 auto; }
   .iconbtn { background: transparent; border: 0; padding: 6px; cursor: pointer;
     color: var(--on-surface-variant); border-radius: 50%; display: inline-flex; }
