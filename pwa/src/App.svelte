@@ -21,6 +21,9 @@
   let showMenu = $state(false)
   let showSettings = $state(false)
   let signedIn = $state(false)
+  // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
+  // membership in at least one training group. null = not yet checked.
+  let entitled = $state<boolean | null>(null)
   let userEmail = $state<string | null>(null)
   let ready = $state(false)
 
@@ -240,7 +243,7 @@
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
       signedIn = !!session; userEmail = session?.user.email ?? null
-      if (session) { step = 'email'; code = '' }
+      if (session) { step = 'email'; code = '' } else { entitled = null }
       maybeResolve()
       // Resume a join the user started before signing in.
       if (session && pendingJoinCode) { const c = pendingJoinCode; pendingJoinCode = ''; attemptJoin(c) }
@@ -287,6 +290,22 @@
     history.replaceState(null, '', `${appBase}?${q.toString()}`)
   })
 
+  // Entitled = paid Cloud-&-Sync plan (is_entitled RPC: allowlist or active sub) OR
+  // member of ≥1 training group. Loads groups in the same pass.
+  async function checkEntitlement(): Promise<boolean> {
+    try {
+      const [entRes, gs] = await Promise.all([
+        supabase.rpc('is_entitled'),
+        loadGroups().catch(() => [] as Group[])
+      ])
+      groups = gs
+      entitled = entRes.data === true || gs.length > 0
+    } catch {
+      entitled = false
+    }
+    return entitled === true
+  }
+
   async function maybeResolve() {
     if (route.type === 'match' && signedIn) {
       sharedState = 'loading'; shared = null
@@ -309,8 +328,8 @@
         reloadData(true)
       } else sharedState = r.status === 'auth' ? 'idle' : r.status
     } else if (route.type === 'home' && signedIn) {
-      if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
-      await reloadData()
+      const ok = await checkEntitlement()
+      if (ok) await reloadData()
     }
   }
 
@@ -357,6 +376,7 @@
     joinBusy = false
     if (r.status === 'ok') {
       groups = await loadGroups().catch(() => groups)
+      entitled = true   // membership in a group grants web access
       ctx = r.groupId; catFilter = ''; dayFilter = ''; tab = 'matches'
       joinCode = ''; route = { type: 'home' }
       try { history.replaceState(null, '', `${location.pathname}${location.search}`) } catch { /* noop */ }
@@ -494,6 +514,18 @@
       </span>
     </div>
 
+    {#if entitled === null}
+      <p class="hint">Lädt…</p>
+    {:else if !entitled}
+      <div class="card gateinfo">
+        <p>Die Funktionen der Web-Variante stehen zur Verfügung, wenn du <strong>Mitglied einer Trainingsgruppe</strong> bist oder über die <strong>Android-App einen „Cloud &amp; Sync"-Tarif</strong> hast.</p>
+        <p class="hint">Tritt einer Trainingsgruppe per Code bei, oder richte „Cloud &amp; Sync" in der Android-App ein — danach erscheinen deine Inhalte hier automatisch.</p>
+        <div class="gatebtns">
+          <button onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
+          <a class="ghost-link" href="https://play.google.com/store/apps/details?id=de.snickel.fooser" target="_blank" rel="noopener">Android-App</a>
+        </div>
+      </div>
+    {:else}
     <div class="filters">
       <select value={ctx ?? ''} onchange={(e) => changeCtx(e.currentTarget.value || null)}>
         <option value="">Dein Konto</option>
@@ -572,6 +604,7 @@
           {/each}
         </ul>
       {/if}
+    {/if}
     {/if}
 
   {:else}
@@ -707,6 +740,8 @@
   .sets.running { color: var(--team-a); }
   .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
+  .gateinfo p { margin: 0 0 8px; }
+  .gatebtns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .jointitle { font-size: 20px; margin: 4px 0 2px; }
   /* retention notice: subtle, but clearly visible (privacy assurance) */
   .retention { color: var(--team-a); font-size: 13px; background: var(--surface);
