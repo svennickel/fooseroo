@@ -31,6 +31,29 @@ export async function loadCategories(ctx: Ctx = null): Promise<string[]> {
   } catch { return [] }
 }
 
+// Write the context's match-category list to app_config (key match_categories,
+// group-prefixed), mirroring CloudConfig. The app's config sync is additive, so a
+// removal here can be re-added by an app device that still has it locally — adds,
+// renames (which also move the matches) and reordering are the durable parts.
+export async function saveCategories(ctx: Ctx, list: string[]): Promise<void> {
+  const { data: sess } = await supabase.auth.getSession()
+  const uid = sess.session?.user.id
+  if (!uid) throw new Error('not_authenticated')
+  const key = `${ctx ? `g:${ctx}:` : ''}match_categories`
+  const { error } = await supabase.from('app_config')
+    .upsert({ owner_id: uid, group_id: ctx, key, value: list }, { onConflict: 'owner_id,key' })
+  if (error) throw error
+}
+
+// Move every match of category `from` to `to` in this context (used by rename and
+// by delete-with-reassign). RLS limits the update to rows the user may write.
+export async function reassignCategory(ctx: Ctx, from: string, to: string): Promise<void> {
+  let q = supabase.from('matches').update({ category: to }).eq('category', from)
+  q = ctx == null ? q.is('group_id', null) : q.eq('group_id', ctx)
+  const { error } = await q
+  if (error) throw error
+}
+
 // My per-group display name (group_names: one row per group+user), or null if unset.
 // Best-effort — never throws (the UI just shows "festlegen" if it can't read).
 export async function myGroupName(groupId: string): Promise<string | null> {

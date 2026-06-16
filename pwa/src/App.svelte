@@ -17,6 +17,7 @@
   import Account from './lib/Account.svelte'
   import MatchProgress from './lib/MatchProgress.svelte'
   import MatchEditor from './lib/MatchEditor.svelte'
+  import CategoryEditor from './lib/CategoryEditor.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
@@ -29,6 +30,7 @@
   let showCtxMenu = $state(false)
   let showDatePicker = $state(false)
   let showCatPicker = $state(false)
+  let showCatEditor = $state(false)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -778,6 +780,8 @@
                   <span>{c === catFilter ? '✓ ' : ''}{c}</span><span class="cnt">{catCount(c)}</span>
                 </button>
               {/each}
+              <div class="menu-sep"></div>
+              <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>✎ Kategorien verwalten</button>
             </div>
           {/if}
         </div>
@@ -872,6 +876,10 @@
   <MatchEditor mode={matchEditor.mode} {ctx} {myUserId} initial={matchEditor.initial}
                nameSuggestions={playerSuggestions} categorySuggestions={categories} {defaultCategory}
                onClose={() => (matchEditor = null)} onSaved={onMatchSaved} />
+{/if}
+{#if showCatEditor}
+  <CategoryEditor {ctx} {categories} {defaultCategory}
+                  onClose={() => (showCatEditor = false)} onChanged={() => reloadData(true)} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
