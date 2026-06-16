@@ -161,13 +161,38 @@
     if (selected?.running) acquireWakeLock(); else releaseWakeLock()
   })
 
-  // Match-detail URL: a group match gets the shareable token PATH
-  // (fooseroo.app/m/<token>) — the same link the app opens (App Links), and a
-  // reload restores the detail (the root 404 page forwards /m/<token> back in).
+  // Match-detail URL while viewing: keep it IN the PWA scope (…/app/#/m/<token>).
+  // A path like fooseroo.app/m/<token> is OUTSIDE the manifest scope (./ → /app/),
+  // which makes iOS standalone (and installed desktop PWAs) drop their chrome back
+  // in (title/toolbar with back/share/reload). The hash form is exactly what
+  // parseRoute reads, so a reload restores the detail directly. The canonical,
+  // App-Link-capable share link (fooseroo.app/m/<token>) is produced only by the
+  // explicit "Teilen" action below.
   let appBase = '/'
   const shareBase = () => appBase.replace(/app\/?$/, '')
   function setMatchUrl(token: string) {
-    try { history.replaceState(null, '', `${shareBase()}m/${token}`) } catch { /* noop */ }
+    try { history.replaceState(null, '', `${appBase}#/m/${token}`) } catch { /* noop */ }
+  }
+  // Canonical absolute share URL (App-Link path form) for a group match.
+  function shareUrlFor(token: string) {
+    return `${location.origin}${shareBase()}m/${token}`
+  }
+  let shareNote = $state('')
+  let shareNoteTimer: ReturnType<typeof setTimeout> | null = null
+  async function shareMatch() {
+    if (!ctx || !selected) return
+    const url = shareUrlFor(encodeMatch(ctx, selected.at))
+    if (navigator.share) {
+      try { await navigator.share({ title: `${selected.homeName} : ${selected.awayName}`, url }) }
+      catch { /* user cancelled */ }
+      return
+    }
+    try {
+      await navigator.clipboard.writeText(url)
+      shareNote = 'Link kopiert'
+    } catch { shareNote = url }
+    if (shareNoteTimer) clearTimeout(shareNoteTimer)
+    shareNoteTimer = setTimeout(() => { shareNote = '' }, 2500)
   }
   function writeHomeUrl() {
     const q = new URLSearchParams()
@@ -486,7 +511,11 @@
   {/if}
 
   {#if selected && view}
-    <button class="ghost small back" onclick={closeMatch}>← Zurück</button>
+    <div class="detail-top">
+      <button class="ghost small back" onclick={closeMatch}>← Zurück</button>
+      {#if ctx}<button class="ghost small share" onclick={shareMatch}>Teilen</button>{/if}
+    </div>
+    {#if shareNote}<div class="share-note">{shareNote}</div>{/if}
     <div class="detail">
       {#if selected.running}<div class="live big"><span class="dot"></span> LIVE</div>{/if}
       <div class="hero">
@@ -900,7 +929,9 @@
     100% { transform: scale(1); opacity: 1 } }
 
   /* match detail */
+  .detail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .back { align-self: flex-start; }
+  .share-note { margin-top: 6px; font-size: 13px; color: var(--on-surface-variant); text-align: right; }
   .center { text-align: center; }
   .detail { display: flex; flex-direction: column; gap: 12px; }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
