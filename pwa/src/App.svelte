@@ -8,11 +8,18 @@
   import { parseMatchState, progressRows } from './lib/match'
   import { encodeMatch } from './lib/share'
   import { speak, cancelSpeech, speechSupported, acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from './lib/live'
+  import { applyTheme, getTheme, termsAccepted, onboardingShown } from './lib/prefs'
+  import Onboarding from './lib/Onboarding.svelte'
+  import Settings from './lib/Settings.svelte'
   import MatchProgress from './lib/MatchProgress.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
   let route = $state<Route>({ type: 'home' })
+  // First-run gate (terms must be accepted before the app is reachable) + settings.
+  let gate = $state(false)
+  let showMenu = $state(false)
+  let showSettings = $state(false)
   let signedIn = $state(false)
   let userEmail = $state<string | null>(null)
   let ready = $state(false)
@@ -207,6 +214,8 @@
     : 'Beitritt fehlgeschlagen – bitte erneut versuchen.'
 
   onMount(() => {
+    applyTheme(getTheme())
+    gate = !termsAccepted() || !onboardingShown()
     appBase = location.pathname.replace(/[^/]*$/, '')   // e.g. "/app/" (SPA base)
     route = parseRoute(location.hash)
     if (route.type === 'join') joinCode = route.code
@@ -375,7 +384,20 @@
 </script>
 
 <main>
-  <h1><img class="logo" src="icon.png" alt="" /> <span class="brand">Fooseroo</span> <span class="tag">Web</span></h1>
+  <div class="topbar">
+    <h1><img class="logo" src="icon.png" alt="" /> <span class="brand">Fooseroo</span> <span class="tag">Web</span></h1>
+    <div class="menuwrap">
+      <button class="iconbtn" aria-label="Menü" aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+      </button>
+      {#if showMenu}
+        <button class="menu-catch" aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
+        <div class="menu" role="menu">
+          <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>Einstellungen</button>
+        </div>
+      {/if}
+    </div>
+  </div>
 
   {#if showInstall}
     <div class="install">
@@ -558,6 +580,13 @@
   {/if}
 </main>
 
+{#if gate}
+  <Onboarding onDone={() => (gate = false)} />
+{/if}
+{#if showSettings}
+  <Settings onClose={() => (showSettings = false)} />
+{/if}
+
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
      area is intentionally absent from the web version). Icons mirror the app's
      ic_matches_24 (plain foosball ring) and ic_mode_24 (history). -->
@@ -608,22 +637,21 @@
     --live: #E53935;          /* countdown_over */
     --ok: #2E7D32; --bad: #C62828;
   }
+  /* Dark palette: on system-dark unless the user forced "Hell", and always when the
+     user forced "Dunkel" (Settings → Design). */
   @media (prefers-color-scheme: dark) {
-    :global(:root) {
-      --bg: #111418;
-      --bg-deep: #0C0F12;
-      --surface: #1A1F24;
-      --surface-variant: #2A3038;
-      --on-surface: #E2E2E6;
-      --on-surface-variant: #C2C5CE;
-      --outline: #3A3F46;
-      --outline-variant: #43474E;
-      --team-a: #A8C8FF;
-      --team-b: #A5D6A7;
-      --on-accent: #06210f;
-      --live: #FF8A80;
-      --ok: #A5D6A7; --bad: #FF8A80;
+    :global(:root:not([data-theme="light"])) {
+      --bg: #111418; --bg-deep: #0C0F12; --surface: #1A1F24; --surface-variant: #2A3038;
+      --on-surface: #E2E2E6; --on-surface-variant: #C2C5CE; --outline: #3A3F46;
+      --outline-variant: #43474E; --team-a: #A8C8FF; --team-b: #A5D6A7; --on-accent: #06210f;
+      --live: #FF8A80; --ok: #A5D6A7; --bad: #FF8A80;
     }
+  }
+  :global(:root[data-theme="dark"]) {
+    --bg: #111418; --bg-deep: #0C0F12; --surface: #1A1F24; --surface-variant: #2A3038;
+    --on-surface: #E2E2E6; --on-surface-variant: #C2C5CE; --outline: #3A3F46;
+    --outline-variant: #43474E; --team-a: #A8C8FF; --team-b: #A5D6A7; --on-accent: #06210f;
+    --live: #FF8A80; --ok: #A5D6A7; --bad: #FF8A80;
   }
   /* The page background covers the whole screen incl. behind the status bar. The
      solid top colour on <html> matches the status bar theme-color exactly, so there
@@ -642,6 +670,20 @@
   h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
   .logo { width: 48px; height: 48px; border-radius: 50%; }
   .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.3px; }
+  /* Top bar with the three-dot overflow menu (top-right), like the app. */
+  .topbar { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .menuwrap { position: relative; flex: 0 0 auto; }
+  .iconbtn { background: transparent; border: 0; padding: 6px; cursor: pointer;
+    color: var(--on-surface-variant); border-radius: 50%; display: inline-flex; }
+  .iconbtn svg { width: 24px; height: 24px; fill: currentColor; }
+  .iconbtn:active { background: var(--surface-variant); }
+  .menu-catch { position: fixed; inset: 0; z-index: 60; background: transparent; border: 0; padding: 0; }
+  .menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 61; background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
+    min-width: 184px; overflow: hidden; }
+  .menu button { display: block; width: 100%; text-align: left; background: transparent; border: 0;
+    padding: 12px 16px; font-size: 15px; color: var(--on-surface); cursor: pointer; }
+  .menu button:active { background: var(--surface-variant); }
   .tag { font-size: 12px; background: var(--surface-variant); color: var(--on-surface-variant);
     padding: 2px 8px; border-radius: 8px; vertical-align: middle; font-weight: 600; }
   p { margin: 0; line-height: 1.5; }
