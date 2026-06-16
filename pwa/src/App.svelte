@@ -11,6 +11,7 @@
   import { applyTheme, getTheme, termsAccepted, onboardingShown } from './lib/prefs'
   import Onboarding from './lib/Onboarding.svelte'
   import Settings from './lib/Settings.svelte'
+  import Account from './lib/Account.svelte'
   import MatchProgress from './lib/MatchProgress.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
@@ -20,6 +21,8 @@
   let gate = $state(false)
   let showMenu = $state(false)
   let showSettings = $state(false)
+  let showAccount = $state(false)
+  let showCtxMenu = $state(false)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -46,6 +49,7 @@
   // Context (Dein Konto / a group), category + day filters — like the app.
   let groups = $state<Group[]>([])
   let ctx = $state<Ctx>(null)
+  const ctxLabel = $derived(ctx == null ? 'Dein Konto' : (groups.find((g) => g.id === ctx)?.name ?? 'Gruppe'))
   // Result-retention of the active group (null = off / personal context).
   let retention = $state<Retention | null>(null)
   // Join-a-group-by-code flow.
@@ -398,7 +402,6 @@
     try { await verifyCode(email.trim(), code) }
     catch (e) { error = (e as Error).message } finally { busy = false }
   }
-  async function signOut() { await supabase.auth.signOut() }
 
   const needsAuthForShare = $derived(route.type !== 'home' && !signedIn)
 </script>
@@ -406,16 +409,37 @@
 <main>
   <div class="topbar">
     <h1><img class="logo" src="icon.png" alt="" /> <span class="brand">Fooseroo</span> <span class="tag">Web</span></h1>
-    <div class="menuwrap">
-      <button class="iconbtn" aria-label="Menü" aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
-        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
-      </button>
-      {#if showMenu}
-        <button class="menu-catch" aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
-        <div class="menu" role="menu">
-          <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>Einstellungen</button>
+    <div class="topright">
+      {#if signedIn && entitled}
+        <div class="ctxwrap">
+          <button class="ctxchip" aria-haspopup="menu" onclick={() => (showCtxMenu = !showCtxMenu)}>
+            {ctxLabel} <span class="caret">▾</span>
+          </button>
+          {#if showCtxMenu}
+            <button class="menu-catch" aria-label="Schließen" onclick={() => (showCtxMenu = false)}></button>
+            <div class="menu" role="menu">
+              <button role="menuitem" class:sel={ctx == null} onclick={() => { showCtxMenu = false; changeCtx(null) }}>{ctx == null ? '✓ ' : ''}Dein Konto</button>
+              {#each groups as g}
+                <button role="menuitem" class:sel={ctx === g.id} onclick={() => { showCtxMenu = false; changeCtx(g.id) }}>{ctx === g.id ? '✓ ' : ''}{g.name}</button>
+              {/each}
+              <div class="menu-sep"></div>
+              <button role="menuitem" onclick={() => { showCtxMenu = false; showAccount = true }}>Konto &amp; Sync</button>
+            </div>
+          {/if}
         </div>
       {/if}
+      <div class="menuwrap">
+        <button class="iconbtn" aria-label="Menü" aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+        </button>
+        {#if showMenu}
+          <button class="menu-catch" aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
+          <div class="menu" role="menu">
+            <button role="menuitem" onclick={() => { showMenu = false; showAccount = true }}>Konto &amp; Sync</button>
+            <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>Einstellungen</button>
+          </div>
+        {/if}
+      </div>
     </div>
   </div>
 
@@ -506,14 +530,6 @@
     {/if}
 
   {:else if signedIn}
-    <div class="row">
-      <span class="hint">Angemeldet als {userEmail}</span>
-      <span class="rowbtns">
-        <button class="ghost small" onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
-        <button class="ghost small" onclick={signOut}>Abmelden</button>
-      </span>
-    </div>
-
     {#if entitled === null}
       <p class="hint">Lädt…</p>
     {:else if !entitled}
@@ -527,10 +543,6 @@
       </div>
     {:else}
     <div class="filters">
-      <select value={ctx ?? ''} onchange={(e) => changeCtx(e.currentTarget.value || null)}>
-        <option value="">Dein Konto</option>
-        {#each groups as g}<option value={g.id}>{g.name}</option>{/each}
-      </select>
       {#if tab === 'matches'}
         <select bind:value={catFilter}>
           {#each categories as c}<option value={c}>{c}</option>{/each}
@@ -618,6 +630,10 @@
 {/if}
 {#if showSettings}
   <Settings onClose={() => (showSettings = false)} />
+{/if}
+{#if showAccount}
+  <Account {signedIn} {userEmail} onClose={() => (showAccount = false)}
+           onJoin={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
@@ -717,6 +733,16 @@
   .menu button { display: block; width: 100%; text-align: left; background: transparent; border: 0;
     padding: 12px 16px; font-size: 15px; color: var(--on-surface); cursor: pointer; }
   .menu button:active { background: var(--surface-variant); }
+  .menu button.sel { color: var(--team-a); font-weight: 700; }
+  .menu-sep { height: 1px; background: var(--outline); margin: 4px 0; }
+  /* Right side of the top bar: context chip ("Dein Konto ▾") + three-dot menu. */
+  .topright { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+  .ctxwrap { position: relative; }
+  .ctxchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
+    padding: 7px 12px; font-size: 14px; font-weight: 600; color: var(--on-surface); cursor: pointer;
+    max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 4px; }
+  .ctxchip .caret { color: var(--on-surface-variant); }
   .tag { font-size: 12px; background: var(--surface-variant); color: var(--on-surface-variant);
     padding: 2px 8px; border-radius: 8px; vertical-align: middle; font-weight: 600; }
   p { margin: 0; line-height: 1.5; }
@@ -738,7 +764,6 @@
   .team.home { text-align: right; }
   .sets { font-size: 18px; font-weight: 800; white-space: nowrap; }
   .sets.running { color: var(--team-a); }
-  .row { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
   .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
   .gateinfo p { margin: 0 0 8px; }
   .gatebtns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
