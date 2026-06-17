@@ -20,6 +20,7 @@
   import CategoryEditor from './lib/CategoryEditor.svelte'
   import TrainingEntry from './lib/TrainingEntry.svelte'
   import TrainingChart from './lib/TrainingChart.svelte'
+  import { isIOS } from './lib/platform'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
@@ -609,8 +610,8 @@
             {ctxLabel} <span class="caret">▾</span>
           </button>
           {#if showCtxMenu}
-            <button class="menu-catch" aria-label="Schließen" onclick={() => (showCtxMenu = false)}></button>
-            <div class="menu" role="menu">
+            <button class="menu-catch" class:dim={isIOS} aria-label="Schließen" onclick={() => (showCtxMenu = false)}></button>
+            <div class="menu" class:sheet={isIOS} role="menu">
               <button role="menuitem" class:sel={ctx == null} onclick={() => { showCtxMenu = false; changeCtx(null) }}>{ctx == null ? '✓ ' : ''}Dein Konto</button>
               {#each groups as g}
                 <button role="menuitem" class:sel={ctx === g.id} onclick={() => { showCtxMenu = false; changeCtx(g.id) }}>{ctx === g.id ? '✓ ' : ''}{g.name}</button>
@@ -623,11 +624,15 @@
       {/if}
       <div class="menuwrap">
         <button class="iconbtn" aria-label="Menü" aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
-          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          {#if isIOS}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
+          {:else}
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="5" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="12" cy="19" r="2"/></svg>
+          {/if}
         </button>
         {#if showMenu}
-          <button class="menu-catch" aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
-          <div class="menu" role="menu">
+          <button class="menu-catch" class:dim={isIOS} aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
+          <div class="menu" class:sheet={isIOS} role="menu">
             <button role="menuitem" onclick={() => { showMenu = false; showAccount = true }}>Konto &amp; Sync</button>
             <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>Einstellungen</button>
           </div>
@@ -653,7 +658,7 @@
 
   {#if selected && view}
     <div class="detail-top">
-      <button class="ghost small back" onclick={closeMatch}>← Zurück</button>
+      <button class="ghost small back" onclick={closeMatch}>{isIOS ? '‹' : '←'} Zurück</button>
       <div class="dt-right">
         {#if ctx}<button class="ghost small share" onclick={shareMatch}>Teilen</button>{/if}
         <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>Bearbeiten</button>
@@ -1019,6 +1024,12 @@
     padding: 12px 16px; font-size: 15px; color: var(--on-surface); cursor: pointer; }
   .menu button:active { background: var(--surface-variant); }
   .menu button.sel { color: var(--team-a); font-weight: 700; }
+  /* iOS: render dropdowns as a bottom action sheet with a dimmed backdrop. */
+  .menu-catch.dim { background: rgba(0,0,0,.35); }
+  .menu.sheet { position: fixed; left: 0; right: 0; bottom: 0; top: auto; margin: 0 auto;
+    width: 100%; max-width: 440px; min-width: 0; border-radius: 16px 16px 0 0;
+    padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
+  .menu.sheet button { text-align: center; padding: 16px; font-size: 17px; }
   .menu-sep { height: 1px; background: var(--outline); margin: 4px 0; }
   /* Right side of the top bar: context chip ("Dein Konto ▾") + three-dot menu. */
   .topright { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
