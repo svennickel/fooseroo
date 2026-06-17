@@ -380,6 +380,7 @@
 
   onMount(() => {
     applyTheme(getTheme())
+    if (isIOS) document.documentElement.classList.add('ios')   // OS-specific UI tweaks
     gate = !termsAccepted() || !onboardingShown()
     appBase = location.pathname.replace(/[^/]*$/, '')   // e.g. "/app/" (SPA base)
     route = parseRoute(location.hash)
@@ -665,7 +666,9 @@
     <div class="detail-top">
       <button class="ghost small back" onclick={closeMatch}>{isIOS ? '‹' : '←'} Zurück</button>
       <div class="dt-right">
-        {#if ctx}<button class="ghost small share" onclick={shareMatch}>Teilen</button>{/if}
+        {#if ctx}<button class="ghost small share" onclick={shareMatch} aria-label="Teilen">
+          {#if isIOS}<svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg>{:else}Teilen{/if}
+        </button>{/if}
         <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>Bearbeiten</button>
       </div>
     </div>
@@ -1111,6 +1114,8 @@
   .fchip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
     border: 1px solid var(--outline); border-radius: 8px; padding: 7px 12px; font-size: 14px;
     color: var(--on-surface); cursor: pointer; max-width: 220px; }
+  /* iOS optic: chips become fully-rounded pills (html.ios set in onMount) */
+  :global(html.ios) .fchip { border-radius: 999px; }
   .fci { width: 18px; height: 18px; flex: 0 0 auto; color: var(--on-surface-variant); }
   .fct { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .fchip .caret { color: var(--on-surface-variant); }
@@ -1141,6 +1146,7 @@
     padding: 12px 14px; font-size: 15px; font-weight: 800; cursor: pointer; align-self: stretch; }
   /* match detail */
   .dt-right { display: flex; align-items: center; gap: 8px; }
+  .shareglyph { width: 20px; height: 20px; display: block; }
   .detail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .back { align-self: flex-start; }
   .share-note { margin-top: 6px; font-size: 13px; color: var(--on-surface-variant); text-align: right; }

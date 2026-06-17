@@ -347,5 +347,7 @@
   .confirm { background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 12px 14px; }
   .confirm p { margin: 0 0 8px; font-size: 14px; }
   .crow { display: flex; gap: 8px; }
+  /* iOS convention: cancel sits left of the action (DOM order is action→cancel) */
+  :global(html.ios) .crow { flex-direction: row-reverse; }
   .err { color: var(--bad); font-size: 13px; margin: 0; }
 </style>

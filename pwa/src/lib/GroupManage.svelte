@@ -85,7 +85,10 @@
               <code class="code">{settings.joinCode ?? '—'}</code>
               <button class="ghost small" onclick={regen} disabled={busy}>Neu erzeugen</button>
             </div>
-            <label class="chk"><input type="checkbox" checked={settings.joinEnabled} onchange={toggleEnabled} disabled={busy} /> Beitritt per Code erlaubt</label>
+            <label class="chk">
+              <span class="chktxt">Beitritt per Code erlaubt</span>
+              <span class="sw"><input type="checkbox" checked={settings.joinEnabled} onchange={toggleEnabled} disabled={busy} /><span class="slider"></span></span>
+            </label>
             <div class="arow">
               <span>Standard-Zugriff neuer Mitglieder:</span>
               <select value={settings.joinDefaultAccess} onchange={(e) => setDefaultAccess((e.currentTarget as HTMLSelectElement).value)} disabled={busy}>
@@ -171,7 +174,16 @@
     text-transform: uppercase; letter-spacing: .04em; }
   .coderow { display: flex; align-items: center; gap: 10px; }
   .code { font-size: 20px; font-weight: 800; letter-spacing: .12em; color: var(--team-a); }
-  .chk { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .chk { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
+  /* iOS-style toggle switch (instead of a raw checkbox) */
+  .sw { position: relative; width: 46px; height: 28px; flex: 0 0 auto; }
+  .sw input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .sw .slider { position: absolute; inset: 0; background: var(--outline); border-radius: 999px; transition: background .2s; }
+  .sw .slider::before { content: ''; position: absolute; width: 24px; height: 24px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .sw input:checked + .slider { background: var(--ok); }
+  .sw input:checked + .slider::before { transform: translateX(18px); }
+  .sw input:disabled + .slider { opacity: .5; }
   .arow { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14px; }
   .mrow { display: flex; align-items: center; justify-content: space-between; gap: 10px;
     border-top: 1px solid var(--outline); padding-top: 8px; }
