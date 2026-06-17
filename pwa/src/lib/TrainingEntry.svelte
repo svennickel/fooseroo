@@ -102,6 +102,8 @@
   .kinds { display: flex; gap: 6px; }
   .kinds button { flex: 1; background: var(--surface); border: 1px solid var(--outline); border-radius: 10px;
     padding: 9px 6px; font-size: 13px; font-weight: 600; color: var(--on-surface); cursor: pointer; }
+  /* iOS optic: segmented kind selector as fully-rounded pills */
+  :global(html.ios) .kinds button { border-radius: 999px; }
   .kinds button.on { background: color-mix(in srgb, var(--team-a) 16%, transparent);
     border-color: var(--team-a); color: var(--team-a); }
   .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--on-surface-variant); }

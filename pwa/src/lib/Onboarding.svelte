@@ -55,9 +55,9 @@
             Tageszusammenfassung und Auswertung je Person.</p>
         </div>
 
-        <label class="agree">
-          <input type="checkbox" bind:checked={stats} />
+        <label class="agree toggle">
           <span>Unterstütze die Weiterentwicklung über anonyme Statistiken</span>
+          <span class="sw"><input type="checkbox" bind:checked={stats} /><span class="slider"></span></span>
         </label>
         <p class="note">Ganz freiwillig – jederzeit in den Einstellungen änderbar.</p>
         <p class="fn"><sup>¹</sup> Diese Funktion ist der Fooseroo-App für Android vorbehalten und in
@@ -83,6 +83,15 @@
   .agree { display: flex; gap: 10px; align-items: flex-start; font-size: 14px; line-height: 1.45;
     background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 12px; }
   .agree input { width: 20px; height: 20px; margin-top: 1px; flex: 0 0 auto; accent-color: var(--team-a); }
+  /* the stats opt-in is a preference → a toggle switch (iOS optic), not a checkbox */
+  .agree.toggle { align-items: center; justify-content: space-between; }
+  .sw { position: relative; width: 46px; height: 28px; flex: 0 0 auto; margin: 0; }
+  .sw input { position: absolute; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
+  .sw .slider { position: absolute; inset: 0; background: var(--outline); border-radius: 999px; transition: background .2s; }
+  .sw .slider::before { content: ''; position: absolute; width: 24px; height: 24px; left: 2px; top: 2px;
+    background: #fff; border-radius: 50%; box-shadow: 0 1px 3px rgba(0,0,0,.3); transition: transform .2s; }
+  .sw input:checked + .slider { background: var(--ok); }
+  .sw input:checked + .slider::before { transform: translateX(18px); }
   .note { font-size: 12px; color: var(--on-surface-variant); margin: 6px 0 0; }
   .fn { font-size: 12px; color: var(--on-surface-variant); margin: 14px 0 0;
     border-top: 1px solid var(--outline); padding-top: 10px; }

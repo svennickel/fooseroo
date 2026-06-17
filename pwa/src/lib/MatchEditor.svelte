@@ -257,7 +257,7 @@
         <div class="sheetwrap" role="presentation">
           <button class="sheetbg" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
           <div class="actionsheet" role="menu">
-            {#if ctx}<button role="menuitem" onclick={shareMatch}>Teilen</button>{/if}
+            {#if ctx}<button role="menuitem" onclick={shareMatch}><svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg> Teilen</button>{/if}
             <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>Löschen…</button>
             <button role="menuitem" class="cancel" onclick={() => (menuOpen = false)}>Abbrechen</button>
           </div>
@@ -349,5 +349,7 @@
   .crow { display: flex; gap: 8px; }
   /* iOS convention: cancel sits left of the action (DOM order is action→cancel) */
   :global(html.ios) .crow { flex-direction: row-reverse; }
+  /* iOS share glyph inline in the action-sheet "Teilen" row */
+  .shareglyph { width: 18px; height: 18px; vertical-align: -3px; margin-right: 4px; }
   .err { color: var(--bad); font-size: 13px; margin: 0; }
 </style>
