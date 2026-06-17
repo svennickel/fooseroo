@@ -5,10 +5,12 @@ export type Group = { id: string; name: string; ownerId: string | null }
 // The signed-in user's training groups (RLS limits to memberships). ownerId lets the
 // UI hide "leave" for the owner (who deletes the group instead, like the app).
 export async function loadGroups(): Promise<Group[]> {
-  const { data, error } = await supabase.from('groups').select('id,name,owner_id').order('name')
+  const { data, error } = await supabase.from('groups').select('id,name,owner_id')
   if (error) throw error
   return (data ?? []).map((g: { id: string; name: string | null; owner_id: string | null }) =>
     ({ id: g.id, name: g.name ?? '—', ownerId: g.owner_id ?? null }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }))   // alphabetical
+
 }
 
 // The context's match categories as synced by the app (app_config, key
