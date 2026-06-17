@@ -10,6 +10,7 @@
   import { saveMatchRow, discardMatchRow } from './matchstore'
   import { createLiveEditor, liveChannelId, type LiveEditor } from './livematch'
   import { parseMatchState, progressRows } from './match'
+  import { encodeMatch } from './share'
   import type { MatchItem } from './data'
   import MatchProgress from './MatchProgress.svelte'
 
@@ -25,7 +26,14 @@
   let editName = $state<'a' | 'b' | null>(null)
   let score = $state<ScoreState>(
     mode === 'edit' ? replaceActions(((initial?.state as { matchActions?: unknown[] } | null)?.matchActions as never) ?? []) : emptyScore())
-  let running = $state(mode === 'new' ? true : !!initial?.running)
+  // Editing reopens the match into the running counter (like the app's "Bearbeiten"),
+  // so the screen is always the live counter; "Spielende" finishes it.
+  let running = $state(true)
+  let menuOpen = $state(false)        // three-dot overflow
+  let askEnd = $state(false)          // "Spiel beenden?" confirmation
+  let askDelete = $state(false)       // "Löschen…" confirmation
+  const ROD_SHORT = 10, ROD_LONG = 15 // the 10s / 15s countdown buttons
+  let progressEl: HTMLElement | undefined = $state()
   let ts = $state(initial?.at ?? 0)
   let err = $state('')
   let editor: LiveEditor | null = null
@@ -107,18 +115,36 @@
     try { await saveRow(true) } catch { err = 'Speichern fehlgeschlagen.'; return }
     cleanup(); onSaved(); onClose()   // row stays running; editor stops broadcasting
   }
-  async function saveEdited() {
-    if (saveTimer) clearTimeout(saveTimer)
-    try { await saveRow(running) } catch { err = 'Speichern fehlgeschlagen.'; return }
-    if (running) editor?.push(JSON.stringify(score), labelA, labelB)
-    cleanup(); onSaved(); onClose()
-  }
   async function discard() {
     if (saveTimer) clearTimeout(saveTimer)
     try { await discardMatchRow(ctx, ts) } catch { err = 'Verwerfen fehlgeschlagen.'; return }
     editor?.end(null, true); cleanup(); onSaved(); onClose()
   }
   function cancel() { cleanup(); onClose() }
+
+  // "Spielende" → confirm; with goals it is archived (finish), without it is
+  // discarded (abandon) — exactly the app's matchEndRequest.
+  const hasGoals = $derived(score.matchActions.some((a) => a.type === 'GOAL'))
+  function endConfirmed() { askEnd = false; if (hasGoals) finish(); else discard() }
+
+  // Per-team stats line (timeouts + reset state + "Auflage"), exact app wording.
+  function statsLine(team: 'A' | 'B'): string {
+    const to = team === 'A' ? score.timeoutsA : score.timeoutsB
+    const rs = team === 'A' ? score.resetStateA : score.resetStateB
+    const toStr = to === 1 ? '1 Timeout\n' : to === 2 ? '2 Timeouts\n' : ''
+    const rsStr = rs === 'RESET' ? 'Reset\n' : rs === 'RESET_WARNING' ? 'Reset Warning\n'
+      : rs === 'RESET_VIOLATION' ? 'Reset Violation\n' : ''
+    const serving = score.serve === (team === 'A' ? 'TEAM_A' : 'TEAM_B')
+    return toStr + rsStr + (serving ? 'Auflage' : '')
+  }
+
+  async function shareMatch() {
+    menuOpen = false
+    if (!ctx) return
+    const url = `${location.origin}/m/${encodeMatch(ctx, ts)}`
+    if (navigator.share) { try { await navigator.share({ title: `${labelA} : ${labelB}`, url }) } catch { /* cancelled */ } }
+    else { try { await navigator.clipboard.writeText(url) } catch { /* ignore */ } }
+  }
 </script>
 
 <div class="overlay" role="presentation">
@@ -133,20 +159,47 @@
       <button class="primary" onclick={start}>Spiel starten</button>
       {#if err}<p class="err">{err}</p>{/if}
     {:else}
-      <div class="head">
-        <strong>{running ? 'Live erfassen' : 'Bearbeiten'}</strong>
-        <button class="ghost small" onclick={cancel}>Schließen</button>
+      <!-- Toolbar like the app's match counter: back (parks), Spielverlauf, Rückgängig,
+           Seiten tauschen, and the three-dot overflow (Teilen, Löschen…). -->
+      <div class="toolbar">
+        <button class="tbtn" onclick={park} aria-label="Zurück">←</button>
+        <div class="tactions">
+          <button class="tbtn" onclick={() => progressEl?.scrollIntoView({ behavior: 'smooth' })} title="Spielverlauf" aria-label="Spielverlauf">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.26,3C8.17,2.86 4,6.95 4,12L2.21,12c-0.45,0 -0.67,0.54 -0.35,0.85l2.79,2.8c0.2,0.2 0.51,0.2 0.71,0l2.79,-2.8c0.31,-0.31 0.09,-0.85 -0.36,-0.85L6,12c0,-3.9 3.18,-7.05 7.1,-7 3.72,0.05 6.85,3.18 6.9,6.9 0.05,3.91 -3.1,7.1 -7,7.1 -1.61,0 -3.1,-0.55 -4.28,-1.48 -0.4,-0.31 -0.96,-0.28 -1.32,0.08 -0.42,0.42 -0.39,1.13 0.08,1.49C9,20.29 10.91,21 13,21c5.05,0 9.14,-4.17 9,-9.26 -0.13,-4.69 -4.05,-8.61 -8.74,-8.74zM12.75,8c-0.41,0 -0.75,0.34 -0.75,0.75v3.68c0,0.35 0.19,0.68 0.49,0.86l3.12,1.85c0.36,0.21 0.82,0.09 1.03,-0.26 0.21,-0.36 0.09,-0.82 -0.26,-1.03l-2.88,-1.71v-3.4c0,-0.4 -0.34,-0.74 -0.75,-0.74z"/></svg>
+          </button>
+          <button class="tbtn" onclick={doUndo} disabled={score.matchActions.length === 0} title="Rückgängig" aria-label="Rückgängig">↶</button>
+          <button class="tbtn" onclick={doSwap} title="Seiten tauschen" aria-label="Seiten tauschen">⇄</button>
+          <div class="ovwrap">
+            <button class="tbtn" onclick={() => (menuOpen = !menuOpen)} aria-label="Mehr">⋮</button>
+            {#if menuOpen}
+              <button class="catch" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
+              <div class="ovmenu" role="menu">
+                {#if ctx}<button role="menuitem" onclick={shareMatch}>Teilen</button>{/if}
+                <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>Löschen…</button>
+              </div>
+            {/if}
+          </div>
+        </div>
       </div>
 
-      <!-- Hero: names + the SET score (like the app); current-set goals live only in
-           the Verlauf LIVE row below — no separate goal counter. -->
+      <!-- Countdown row: [10s] [Bereit / countdown] [15s] -->
+      <div class="cdrow">
+        <button class="rod" onclick={() => startCountdown(ROD_SHORT)}>{ROD_SHORT}s</button>
+        <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
+          {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}` : 'Bereit'}
+          {#if cdRunning}<div class="cdc">{Math.round(cdTotal / 1000)}s Countdown</div>{/if}
+        </div>
+        <button class="rod" onclick={() => startCountdown(ROD_LONG)}>{ROD_LONG}s</button>
+      </div>
+
+      <!-- Names + set score -->
       <div class="hero">
         <div class="side a">
           {#if editName === 'a'}
             <input class="nin" bind:value={teamA} onblur={() => { editName = null; onName() }}
                    onkeydown={(e) => { if (e.key === 'Enter') { editName = null; onName() } }} />
           {:else}
-            <button class="nm a" onclick={() => (editName = 'a')}>{labelA} ✎</button>
+            <button class="nm a" onclick={() => (editName = 'a')}>{labelA}</button>
           {/if}
         </div>
         <div class="cur">{sets.a} : {sets.b}</div>
@@ -155,53 +208,47 @@
             <input class="nin" bind:value={teamB} onblur={() => { editName = null; onName() }}
                    onkeydown={(e) => { if (e.key === 'Enter') { editName = null; onName() } }} />
           {:else}
-            <button class="nm b" onclick={() => (editName = 'b')}>{labelB} ✎</button>
+            <button class="nm b" onclick={() => (editName = 'b')}>{labelB}</button>
           {/if}
         </div>
       </div>
 
-      <!-- Shot-clock countdown (like the app's match counter): runs after each goal/
-           timeout/set, idle shows "Bereit". -->
-      <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
-        {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}s` : 'Bereit'}
+      <!-- Per-team small buttons: Auflage · Reset · Timeout | Timeout · Reset · Auflage -->
+      <div class="btn6">
+        <button class="sb" class:on={score.serve === 'TEAM_A'} onclick={() => serve('TEAM_A')}>Auflage</button>
+        <button class="sb" onclick={() => reset('TEAM_A')}>Reset</button>
+        <button class="sb" onclick={() => timeout('TEAM_A')} disabled={score.timeoutsA >= 2}>Timeout</button>
+        <button class="sb" onclick={() => timeout('TEAM_B')} disabled={score.timeoutsB >= 2}>Timeout</button>
+        <button class="sb" onclick={() => reset('TEAM_B')}>Reset</button>
+        <button class="sb" class:on={score.serve === 'TEAM_B'} onclick={() => serve('TEAM_B')}>Auflage</button>
       </div>
 
-      <!-- Per-team actions -->
-      <div class="cols">
-        {#each [{ t: 'TEAM_A' as Team, cls: 'a', to: score.timeoutsA, sv: score.serve === 'TEAM_A' }, { t: 'TEAM_B' as Team, cls: 'b', to: score.timeoutsB, sv: score.serve === 'TEAM_B' }] as col}
-          <div class="col {col.cls}">
-            <button class="serve" class:on={col.sv} onclick={() => serve(col.t)}
-                    disabled={score.goalsA > 0 || score.goalsB > 0} title="Aufschlag">⚪ Aufschlag</button>
-            <button class="tor {col.cls}" onclick={() => goal(col.t)}>TOR&nbsp;+</button>
-            <div class="srow">
-              <button class="mini" onclick={() => timeout(col.t)} disabled={col.to >= 2}>Auszeit {col.to}/2</button>
-              <button class="mini" onclick={() => reset(col.t)}>Reset</button>
-            </div>
-          </div>
-        {/each}
+      <!-- Tor | Satzende | Tor -->
+      <div class="goalrow">
+        <button class="tor a" onclick={() => goal('TEAM_A')}>Tor</button>
+        <button class="finish" onclick={finishSet} disabled={!canFinishSet}>Satzende</button>
+        <button class="tor b" onclick={() => goal('TEAM_B')}>Tor</button>
       </div>
 
-      <div class="grow">
-        <button class="mini" onclick={doUndo} disabled={score.matchActions.length === 0}>↶ Rückgängig</button>
-        <button class="mini" onclick={finishSet} disabled={!canFinishSet}>Satz beenden</button>
-        <button class="mini" onclick={doSwap}>⇄ Seiten tauschen</button>
-      </div>
+      <div class="statsrow"><div class="stats">{statsLine('A')}</div><div class="stats">{statsLine('B')}</div></div>
 
-      {#if progress.rows.length}
-        <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
-      {/if}
-
-      {#if err}<p class="err">{err}</p>{/if}
-      <div class="actions">
-        {#if running}
-          <button class="primary" onclick={finish}>Beenden</button>
-          <button class="ghost small" onclick={park}>Parken</button>
-          <button class="danger small" onclick={discard}>Verwerfen</button>
-        {:else}
-          <button class="primary" onclick={saveEdited}>Speichern</button>
-          <button class="ghost small" onclick={cancel}>Abbrechen</button>
+      <div bind:this={progressEl}>
+        {#if progress.rows.length}
+          <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
         {/if}
       </div>
+
+      {#if err}<p class="err">{err}</p>{/if}
+
+      {#if askDelete}
+        <div class="confirm"><p>Match löschen?</p>
+          <div class="crow"><button class="danger small" onclick={discard}>Löschen</button><button class="ghost small" onclick={() => (askDelete = false)}>Abbrechen</button></div></div>
+      {:else if askEnd}
+        <div class="confirm"><p><strong>Spiel beenden?</strong><br>{hasGoals ? 'Ergebnis und Spielverlauf werden gespeichert.' : 'Ohne Tore wird das Spiel verworfen.'}</p>
+          <div class="crow"><button class="primary" onclick={endConfirmed}>Spielende</button><button class="ghost small" onclick={() => (askEnd = false)}>Abbrechen</button></div></div>
+      {:else}
+        <button class="primary end" onclick={() => (askEnd = true)}>Spielende</button>
+      {/if}
     {/if}
   </div>
 </div>
@@ -225,29 +272,55 @@
   .nin { font-size: 16px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
   .setsw { font-size: 12px; color: var(--on-surface-variant); }
   .cur { font-size: 40px; font-weight: 800; line-height: 1; padding: 0 8px; }
-  .cd { text-align: center; font-size: 22px; font-weight: 800; padding: 4px 0;
-    color: var(--on-surface-variant); }
-  .cd.run { color: var(--team-a); }
-  .cd.warn { color: var(--live); }
-  .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .col { display: flex; flex-direction: column; gap: 8px; }
-  .tor { padding: 22px 0; font-size: 22px; font-weight: 800; border: 0; border-radius: 14px;
+  /* Toolbar (match counter) */
+  .toolbar { display: flex; align-items: center; justify-content: space-between; }
+  .tactions { display: flex; align-items: center; gap: 2px; }
+  .tbtn { background: transparent; border: 0; color: var(--on-surface-variant); cursor: pointer;
+    width: 40px; height: 40px; border-radius: 50%; font-size: 20px; display: inline-flex;
+    align-items: center; justify-content: center; }
+  .tbtn:disabled { opacity: .4; cursor: default; }
+  .tbtn svg { width: 22px; height: 22px; }
+  .ovwrap { position: relative; }
+  .catch { position: fixed; inset: 0; z-index: 60; background: transparent; border: 0; }
+  .ovmenu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 61; background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
+    min-width: 160px; overflow: hidden; }
+  .ovmenu button { display: block; width: 100%; text-align: left; background: transparent; border: 0;
+    padding: 12px 16px; font-size: 15px; color: var(--on-surface); cursor: pointer; }
+  .ovmenu button.del { color: var(--bad); }
+  /* Countdown row */
+  .cdrow { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px; }
+  .rod { background: var(--surface); border: 1px solid var(--outline); border-radius: 10px;
+    padding: 8px 12px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
+  .cd { text-align: center; font-size: 26px; font-weight: 800; color: var(--on-surface-variant); line-height: 1.05; }
+  .cd.run { color: var(--team-a); } .cd.warn { color: var(--live); }
+  .cdc { font-size: 11px; font-weight: 600; color: var(--on-surface-variant); }
+  /* Per-team small buttons */
+  .btn6 { display: grid; grid-template-columns: repeat(6, 1fr); gap: 4px; }
+  .sb { background: transparent; border: 1px solid var(--outline); border-radius: 8px;
+    padding: 8px 2px; font-size: 12px; font-weight: 600; color: var(--on-surface); cursor: pointer; }
+  .sb.on { border-color: var(--on-surface); font-weight: 800; }
+  .sb:disabled { opacity: .4; cursor: default; }
+  /* Tor | Satzende | Tor */
+  .goalrow { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: stretch; }
+  .tor { padding: 24px 0; font-size: 22px; font-weight: 800; border: 0; border-radius: 14px;
     color: #fff; cursor: pointer; }
   .tor.a { background: var(--team-a); } .tor.b { background: var(--team-b); }
-  .serve { background: transparent; border: 1px solid var(--outline); border-radius: 999px;
-    padding: 6px 10px; font-size: 12px; font-weight: 600; color: var(--on-surface-variant); cursor: pointer; }
-  .serve.on { color: var(--on-surface); border-color: var(--on-surface); font-weight: 800; }
-  .srow { display: flex; gap: 6px; }
-  .grow { display: flex; gap: 8px; flex-wrap: wrap; justify-content: center; }
-  .mini { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
-    border-radius: 10px; padding: 8px 12px; font-size: 13px; font-weight: 600; cursor: pointer; flex: 1; }
-  .mini:disabled { opacity: .45; cursor: default; }
-  .actions { display: flex; gap: 8px; align-items: center; }
+  .finish { background: var(--surface); border: 1px solid var(--outline); border-radius: 14px;
+    padding: 0 14px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
+  .finish:disabled { opacity: .4; cursor: default; }
+  .statsrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+  .stats { font-size: 12px; color: var(--on-surface-variant); white-space: pre-line; min-height: 16px; }
+  .stats:last-child { text-align: right; }
   .primary { background: var(--team-a); color: var(--on-accent); border: 0; border-radius: 12px;
-    padding: 12px 18px; font-size: 16px; font-weight: 800; cursor: pointer; flex: 1; }
+    padding: 12px 18px; font-size: 16px; font-weight: 800; cursor: pointer; }
+  .primary.end { align-self: stretch; }
   .ghost.small { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .danger.small { background: transparent; color: var(--bad); border: 1px solid var(--bad);
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  .confirm { background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 12px 14px; }
+  .confirm p { margin: 0 0 8px; font-size: 14px; }
+  .crow { display: flex; gap: 8px; }
   .err { color: var(--bad); font-size: 13px; margin: 0; }
 </style>
