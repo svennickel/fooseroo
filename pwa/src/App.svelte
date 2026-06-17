@@ -33,6 +33,8 @@
   let showDatePicker = $state(false)
   let showCatPicker = $state(false)
   let showCatEditor = $state(false)
+  let personFilter = $state('')        // training person report ('' = all people)
+  let showPersonPicker = $state(false)
   let trainingEntry = $state(false)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
@@ -115,7 +117,8 @@
   const catCount = (c: string) => matches.filter((m) => m.category === c && dayOf(m.at) === dayFilter).length
   const shownMatches = $derived(matches.filter((m) =>
     (catFilter === '' || m.category === catFilter) && (dayFilter === '' || dayOf(m.at) === dayFilter)))
-  const shownTraining = $derived(training.filter((t) => dayFilter === '' || dayOf(t.at) === dayFilter))
+  const shownTraining = $derived(training.filter((t) =>
+    (dayFilter === '' || dayOf(t.at) === dayFilter) && (personFilter === '' || t.name === personFilter)))
 
   // Matches / Training tabs (like the app's areas), persisted with the selectors.
   let tab = $state<'matches' | 'training'>('matches')
@@ -788,6 +791,24 @@
               {/each}
               <div class="menu-sep"></div>
               <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>✎ Kategorien verwalten</button>
+            </div>
+          {/if}
+        </div>
+      {:else}
+        <!-- Training: person filter → per-person report (with "alle Tage" = cross-day). -->
+        <div class="fchipwrap">
+          <button class="fchip" aria-haspopup="menu" onclick={() => (showPersonPicker = !showPersonPicker)}>
+            <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
+            <span class="fct">{personFilter || 'Alle Personen'}</span>
+            <span class="caret">▾</span>
+          </button>
+          {#if showPersonPicker}
+            <button class="menu-catch" aria-label="Schließen" onclick={() => (showPersonPicker = false)}></button>
+            <div class="menu picker" role="menu">
+              <button role="menuitem" class:sel={personFilter === ''} onclick={() => { showPersonPicker = false; personFilter = '' }}>{personFilter === '' ? '✓ ' : ''}Alle Personen</button>
+              {#each trainingNames as n}
+                <button role="menuitem" class:sel={n === personFilter} onclick={() => { showPersonPicker = false; personFilter = n }}>{n === personFilter ? '✓ ' : ''}{n}</button>
+              {/each}
             </div>
           {/if}
         </div>
