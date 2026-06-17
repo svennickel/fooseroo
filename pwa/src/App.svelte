@@ -169,7 +169,9 @@
   // byte-for-byte port of the app's LiveCommentaryService (lib/commentary.ts).
   $effect(() => {
     const v = view, on = readAloud, sel = selected
-    if (!v || !on || !sel) return
+    // Read-aloud is ONLY for the (read-only) match detail of a live match — never
+    // while editing. The editor view nulls `selected`, but guard explicitly too.
+    if (!v || !on || !sel || matchEditor) return
     const n = { home: sel.homeName, away: sel.awayName }
     const run = !!sel.running
     const goals = v.goals.length, sets = v.sets.length, timeouts = v.timeouts.length
@@ -213,6 +215,9 @@
     if (newGoals && !newSets) speak(currentScoreLine(v, n))
     spokenGoals = goals; spokenSets = sets
   })
+
+  // Read-aloud is detail-only: stop any ongoing speech the moment the editor opens.
+  $effect(() => { if (matchEditor) cancelSpeech() })
 
   // Periodic recap ("Spielstand weiter …") every 3 minutes while live and reading,
   // like the app's RECAP_MILLIS. Keyed on a stable boolean so the per-poll `selected`
