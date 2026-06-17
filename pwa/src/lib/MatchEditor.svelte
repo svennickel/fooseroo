@@ -6,7 +6,7 @@
   // change; a newer claim takes over from the app) and writes the byte-identical
   // matches row. Park / Beenden / Verwerfen mirror the app.
   import { applyAction, undo, swapSides, replaceActions, emptyScore, setsWonFromGames,
-    type ScoreState, type Team } from './scoring'
+    type ScoreState, type Team, type ActionType } from './scoring'
   import { saveMatchRow, discardMatchRow } from './matchstore'
   import { createLiveEditor, liveChannelId, type LiveEditor } from './livematch'
   import { parseMatchState, progressRows } from './match'
@@ -53,15 +53,35 @@
     await saveMatchRow({ groupId: ctx, ts, teamA: labelA, teamB: labelB,
       category: category.trim() || null, state: score, running: run })
   }
+  // Shot-clock countdown after actions, like the app's match counter: goal 5s,
+  // timeout 30s, set finished 90s; idle = "Bereit".
+  const CD_GOAL = 5, CD_TIMEOUT = 30, CD_SET = 90
+  let cdTotal = $state(0), cdRemaining = $state(0), cdRunning = $state(false)
+  let cdTick: ReturnType<typeof setInterval> | null = null
+  function startCountdown(seconds: number) {
+    if (cdTick) clearInterval(cdTick)
+    cdTotal = seconds * 1000; cdRemaining = cdTotal; cdRunning = true
+    const end = Date.now() + cdTotal
+    cdTick = setInterval(() => {
+      cdRemaining = Math.max(0, end - Date.now())
+      if (cdRemaining <= 0) { if (cdTick) clearInterval(cdTick); cdTick = null; cdRunning = false; try { navigator.vibrate?.(200) } catch { /* ignore */ } }
+    }, 50)
+  }
+  function stopCountdown() { if (cdTick) clearInterval(cdTick); cdTick = null; cdRunning = false }
+
   // Apply a change. While live (new / running): broadcast + debounce-persist. While
   // editing a FINISHED match: change locally only — persist on explicit "Speichern"
   // so "Abbrechen" truly reverts (and never deletes the match).
   function change(next: ScoreState | null) { if (!next) return; score = next; if (running) { pushLive(); scheduleSave() } }
-  const goal = (t: Team) => change(applyAction(score, t, 'GOAL'))
-  const serve = (t: Team) => change(applyAction(score, t, 'SERVE'))
-  const timeout = (t: Team) => change(applyAction(score, t, 'TIMEOUT'))
-  const reset = (t: Team) => change(applyAction(score, t, 'RESET'))
-  const finishSet = () => change(applyAction(score, 'NONE', 'GAME_FINISHED'))
+  function act(team: Team, type: ActionType, cd?: number) {
+    const n = applyAction(score, team, type); if (!n) return
+    change(n); if (cd) startCountdown(cd)
+  }
+  const goal = (t: Team) => act(t, 'GOAL', CD_GOAL)
+  const serve = (t: Team) => act(t, 'SERVE')
+  const timeout = (t: Team) => act(t, 'TIMEOUT', CD_TIMEOUT)
+  const reset = (t: Team) => act(t, 'RESET')
+  const finishSet = () => act('NONE', 'GAME_FINISHED', CD_SET)
   const doUndo = () => { score = undo(score); if (running) { pushLive(); scheduleSave() } }
   const doSwap = () => { score = swapSides(score); if (running) { pushLive(); scheduleSave() } }
   function onName() { if (running) pushLive(); scheduleSave() }
@@ -76,7 +96,7 @@
   // For editing an already-running match, take over as the live editor.
   $effect(() => { if (phase === 'scoring' && running && !editor && mode === 'edit') startLiveEditor() })
 
-  function cleanup() { if (saveTimer) clearTimeout(saveTimer); editor?.leave(); editor = null }
+  function cleanup() { if (saveTimer) clearTimeout(saveTimer); stopCountdown(); editor?.leave(); editor = null }
   async function finish() {
     if (saveTimer) clearTimeout(saveTimer)
     try { running = false; await saveRow(false) } catch { err = 'Speichern fehlgeschlagen.'; return }
@@ -140,6 +160,12 @@
         </div>
       </div>
 
+      <!-- Shot-clock countdown (like the app's match counter): runs after each goal/
+           timeout/set, idle shows "Bereit". -->
+      <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
+        {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}s` : 'Bereit'}
+      </div>
+
       <!-- Per-team actions -->
       <div class="cols">
         {#each [{ t: 'TEAM_A' as Team, cls: 'a', to: score.timeoutsA, sv: score.serve === 'TEAM_A' }, { t: 'TEAM_B' as Team, cls: 'b', to: score.timeoutsB, sv: score.serve === 'TEAM_B' }] as col}
@@ -199,6 +225,10 @@
   .nin { font-size: 16px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
   .setsw { font-size: 12px; color: var(--on-surface-variant); }
   .cur { font-size: 40px; font-weight: 800; line-height: 1; padding: 0 8px; }
+  .cd { text-align: center; font-size: 22px; font-weight: 800; padding: 4px 0;
+    color: var(--on-surface-variant); }
+  .cd.run { color: var(--team-a); }
+  .cd.warn { color: var(--live); }
   .cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   .col { display: flex; flex-direction: column; gap: 8px; }
   .tor { padding: 22px 0; font-size: 22px; font-weight: 800; border: 0; border-radius: 14px;
