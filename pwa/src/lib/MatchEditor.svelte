@@ -11,6 +11,7 @@
   import { createLiveEditor, liveChannelId, type LiveEditor } from './livematch'
   import { parseMatchState, progressRows } from './match'
   import { encodeMatch } from './share'
+  import { isIOS } from './platform'
   import type { MatchItem } from './data'
   import MatchProgress from './MatchProgress.svelte'
 
@@ -162,7 +163,7 @@
       <!-- Toolbar like the app's match counter: back (parks), Spielverlauf, Rückgängig,
            Seiten tauschen, and the three-dot overflow (Teilen, Löschen…). -->
       <div class="toolbar">
-        <button class="tbtn" onclick={park} aria-label="Zurück">←</button>
+        <button class="tbtn" onclick={park} aria-label="Zurück">{isIOS ? '‹' : '←'}</button>
         <div class="tactions">
           <button class="tbtn" onclick={() => progressEl?.scrollIntoView({ behavior: 'smooth' })} title="Spielverlauf" aria-label="Spielverlauf">
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.26,3C8.17,2.86 4,6.95 4,12L2.21,12c-0.45,0 -0.67,0.54 -0.35,0.85l2.79,2.8c0.2,0.2 0.51,0.2 0.71,0l2.79,-2.8c0.31,-0.31 0.09,-0.85 -0.36,-0.85L6,12c0,-3.9 3.18,-7.05 7.1,-7 3.72,0.05 6.85,3.18 6.9,6.9 0.05,3.91 -3.1,7.1 -7,7.1 -1.61,0 -3.1,-0.55 -4.28,-1.48 -0.4,-0.31 -0.96,-0.28 -1.32,0.08 -0.42,0.42 -0.39,1.13 0.08,1.49C9,20.29 10.91,21 13,21c5.05,0 9.14,-4.17 9,-9.26 -0.13,-4.69 -4.05,-8.61 -8.74,-8.74zM12.75,8c-0.41,0 -0.75,0.34 -0.75,0.75v3.68c0,0.35 0.19,0.68 0.49,0.86l3.12,1.85c0.36,0.21 0.82,0.09 1.03,-0.26 0.21,-0.36 0.09,-0.82 -0.26,-1.03l-2.88,-1.71v-3.4c0,-0.4 -0.34,-0.74 -0.75,-0.74z"/></svg>
@@ -170,8 +171,9 @@
           <button class="tbtn" onclick={doUndo} disabled={score.matchActions.length === 0} title="Rückgängig" aria-label="Rückgängig">↶</button>
           <button class="tbtn" onclick={doSwap} title="Seiten tauschen" aria-label="Seiten tauschen">⇄</button>
           <div class="ovwrap">
-            <button class="tbtn" onclick={() => (menuOpen = !menuOpen)} aria-label="Mehr">⋮</button>
-            {#if menuOpen}
+            <button class="tbtn" onclick={() => (menuOpen = !menuOpen)} aria-label="Mehr">{isIOS ? '•••' : '⋮'}</button>
+            {#if menuOpen && !isIOS}
+              <!-- Android/desktop: top-right dropdown -->
               <button class="catch" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
               <div class="ovmenu" role="menu">
                 {#if ctx}<button role="menuitem" onclick={shareMatch}>Teilen</button>{/if}
@@ -249,6 +251,18 @@
       {:else}
         <button class="primary end" onclick={() => (askEnd = true)}>Spielende</button>
       {/if}
+
+      {#if menuOpen && isIOS}
+        <!-- iOS: a bottom action sheet instead of a top-right dropdown -->
+        <div class="sheetwrap" role="presentation">
+          <button class="sheetbg" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
+          <div class="actionsheet" role="menu">
+            {#if ctx}<button role="menuitem" onclick={shareMatch}>Teilen</button>{/if}
+            <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>Löschen…</button>
+            <button role="menuitem" class="cancel" onclick={() => (menuOpen = false)}>Abbrechen</button>
+          </div>
+        </div>
+      {/if}
     {/if}
   </div>
 </div>
@@ -319,6 +333,17 @@
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .danger.small { background: transparent; color: var(--bad); border: 1px solid var(--bad);
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
+  /* iOS action sheet */
+  .sheetwrap { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
+  .sheetbg { position: absolute; inset: 0; background: rgba(0,0,0,.35); border: 0; }
+  .actionsheet { position: relative; width: 100%; max-width: 440px; margin: 0 auto;
+    display: flex; flex-direction: column; gap: 1px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));
+    background: transparent; }
+  .actionsheet button { background: var(--surface); border: 0; padding: 16px; font-size: 17px;
+    color: var(--team-a); cursor: pointer; }
+  .actionsheet button:first-child { border-radius: 12px 12px 0 0; }
+  .actionsheet button.del { color: var(--bad); }
+  .actionsheet button.cancel { border-radius: 12px; margin-top: 8px; font-weight: 700; color: var(--on-surface); }
   .confirm { background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 12px 14px; }
   .confirm p { margin: 0 0 8px; font-size: 14px; }
   .crow { display: flex; gap: 8px; }
