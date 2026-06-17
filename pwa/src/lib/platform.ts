@@ -9,3 +9,19 @@ export const isIOS = (() => {
   // iPadOS reports as desktop Safari (MacIntel) but is touch.
   return navigator.platform === 'MacIntel' && (navigator.maxTouchPoints || 0) > 1
 })()
+
+// Running as an installed (standalone) PWA — display-mode standalone, or iOS Safari's
+// legacy navigator.standalone. A function (the mode can differ per launch).
+export function isStandalonePWA(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    if (window.matchMedia?.('(display-mode: standalone)')?.matches) return true
+  } catch { /* ignore */ }
+  return (navigator as unknown as { standalone?: boolean }).standalone === true
+}
+
+// On iOS, an installed PWA can never receive a magic-link back (the link opens
+// Safari, not the standalone app) — so its OTP mail must offer the CODE only.
+export function otpCodeOnly(): boolean {
+  return isIOS && isStandalonePWA()
+}
