@@ -19,6 +19,7 @@
   import MatchEditor from './lib/MatchEditor.svelte'
   import CategoryEditor from './lib/CategoryEditor.svelte'
   import TrainingEntry from './lib/TrainingEntry.svelte'
+  import TrainingChart from './lib/TrainingChart.svelte'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
 
@@ -839,6 +840,7 @@
       {:else if shownTraining.length === 0}
         <p class="hint">Keine Trainingsergebnisse{#if dayFilter} an diesem Tag{/if}.</p>
       {:else}
+        <TrainingChart items={shownTraining} />
         <ul class="list">
           {#each shownTraining.slice(0, 50) as t}
             <li class="card trow">
