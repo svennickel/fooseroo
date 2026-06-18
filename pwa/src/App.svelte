@@ -4,7 +4,7 @@
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, joinWithCode, groupInvitePreview,
     type SharedMatch, type Route, type InvitePreview } from './lib/shared'
-  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, winnerSide, formatElapsed,
+  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, loadPlayerPool, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows, setsWon } from './lib/match'
   import { watchLiveMatch, liveChannelId } from './lib/livematch'
@@ -65,6 +65,7 @@
   let matchesState = $state<'idle' | 'loading' | 'error'>('idle')
   let cloudCategories = $state<string[]>([]) // synced category list (app_config), per context
   let training = $state<TrainingItem[]>([])
+  let playerPool = $state<string[]>([])   // synced player pool for the active context
 
   // Context (Dein Konto / a group), category + day filters — like the app.
   let groups = $state<Group[]>([])
@@ -515,6 +516,8 @@
       if (!catFilter || !cats.includes(catFilter))
         catFilter = (m.find((x) => x.category)?.category) ?? cats[0] ?? ''
       startListPoll()
+      // Synced player pool for the match/training pickers (best-effort, non-blocking).
+      loadPlayerPool(ctx).then((p) => { playerPool = p }).catch(() => {})
       // Result-retention notice for the active group (best-effort, non-blocking).
       if (ctx) loadGroupRetention(ctx).then((r) => { retention = r }).catch(() => {})
       else retention = null
@@ -916,7 +919,8 @@
 {/if}
 {#if matchEditor}
   <MatchEditor mode={matchEditor.mode} {ctx} {myUserId} initial={matchEditor.initial}
-               nameSuggestions={playerSuggestions} categorySuggestions={categories} {defaultCategory}
+               pool={[...new Set([...playerPool, ...playerSuggestions])]} categorySuggestions={categories} peerMatches={matches}
+               defaultCategory={matchEditor.mode === 'new' ? (catFilter || categories[0] || defaultCategory) : defaultCategory}
                onClose={() => (matchEditor = null)} onSaved={onMatchSaved} />
 {/if}
 {#if showCatEditor}
@@ -1001,6 +1005,9 @@
      is no seam/line; the body carries the subtle gradient (no fixed attachment,
      which caused a visible band at the safe-area edge). */
   :global(html) { background: var(--bg); }
+  /* Stop the document rubber-band/overscroll so the sticky top bar can't drift on
+     iOS (it was "scrolling away slightly" with the bounce). */
+  :global(html), :global(body) { overscroll-behavior-y: none; }
   :global(body) { margin: 0; font-family: system-ui, -apple-system, "Roboto", sans-serif;
     min-height: 100vh;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);

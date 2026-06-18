@@ -56,6 +56,59 @@ export async function reassignCategory(ctx: Ctx, from: string, to: string): Prom
   if (error) throw error
 }
 
+// ---- Player pool (shared people for matches + training), synced like the app ----
+// The app keeps ONE pool (PlayerPool, prefs "time_measure_names") and syncs it to
+// app_config two ways: CloudPlayerPool → key "player_pool[:gid]" value {items:[…]},
+// and CloudConfig → key "[g:gid:]time_measure_names" value […] (a bare array). We
+// read the UNION of both (+ a group's member display names, like the app) and, on
+// add, write BOTH keys so any app/web reader converges immediately. UNION merge —
+// never drop a player.
+function poolKeys(ctx: Ctx) {
+  return ctx == null
+    ? { items: 'player_pool', list: 'time_measure_names' }
+    : { items: `player_pool:${ctx}`, list: `g:${ctx}:time_measure_names` }
+}
+
+export async function loadPlayerPool(ctx: Ctx = null): Promise<string[]> {
+  const out = new Set<string>()
+  const { items, list } = poolKeys(ctx)
+  try {
+    const { data, error } = await ctxFilter(
+      supabase.from('app_config').select('key,value,group_id').in('key', [items, list]), ctx)
+    if (!error && data) for (const row of data as { key: string; value: unknown }[]) {
+      if (row.key === items) {
+        const arr = (row.value && typeof row.value === 'object' && Array.isArray((row.value as { items?: unknown }).items))
+          ? (row.value as { items: unknown[] }).items : []
+        for (const s of arr) if (typeof s === 'string' && s.trim()) out.add(s.trim())
+      } else if (Array.isArray(row.value)) {
+        for (const s of row.value) if (typeof s === 'string' && s.trim()) out.add(s.trim())
+      }
+    }
+  } catch { /* best effort */ }
+  // In a group, the members' per-group display names are people of the group too.
+  if (ctx != null) {
+    try { for (const m of await groupMembers(ctx)) if (m.name?.trim()) out.add(m.name.trim()) } catch { /* ignore */ }
+  }
+  return [...out].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+}
+
+export async function addPlayersToPool(ctx: Ctx, names: string[]): Promise<string[]> {
+  const add = names.map((n) => n.trim()).filter(Boolean)
+  const current = await loadPlayerPool(ctx)
+  if (!add.length) return current
+  const { data: sess } = await supabase.auth.getSession()
+  const uid = sess.session?.user.id
+  if (!uid) return current
+  const merged = [...new Set([...current, ...add])].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }))
+  if (merged.length === current.length) return current   // nothing new
+  const { items, list } = poolKeys(ctx)
+  await supabase.from('app_config').upsert([
+    { owner_id: uid, group_id: ctx, key: items, value: { items: merged } },
+    { owner_id: uid, group_id: ctx, key: list, value: merged }
+  ], { onConflict: 'owner_id,key' })
+  return merged
+}
+
 // My per-group display name (group_names: one row per group+user), or null if unset.
 // Best-effort — never throws (the UI just shows "festlegen" if it can't read).
 export async function myGroupName(groupId: string): Promise<string | null> {

@@ -12,15 +12,22 @@
   import { parseMatchState, progressRows } from './match'
   import { encodeMatch } from './share'
   import { isIOS } from './platform'
-  import type { MatchItem } from './data'
+  import { addPlayersToPool, type MatchItem } from './data'
   import MatchProgress from './MatchProgress.svelte'
+  import ChoicePicker from './ChoicePicker.svelte'
+  import { onMount } from 'svelte'
 
-  let { mode, ctx, myUserId, initial, nameSuggestions, categorySuggestions, defaultCategory, onClose, onSaved }:
+  let { mode, ctx, myUserId, initial, pool, categorySuggestions, defaultCategory, peerMatches, onClose, onSaved }:
     { mode: 'new' | 'edit'; ctx: string | null; myUserId: string | null; initial?: MatchItem | null
-      nameSuggestions: string[]; categorySuggestions: string[]; defaultCategory: string
+      pool: string[]; categorySuggestions: string[]; defaultCategory: string; peerMatches: MatchItem[]
       onClose: () => void; onSaved: () => void } = $props()
 
-  let phase = $state<'setup' | 'scoring'>(mode === 'new' ? 'setup' : 'scoring')
+  // The match counter is always the live scoring screen — a new match opens straight
+  // into it (in the current category), like the app's "Neues Match".
+  let poolState = $state<string[]>([...pool])
+  let picking = $state<'a' | 'b' | 'cat' | null>(null)  // open chip picker for a side / category
+  const TEAM_SEP = ' & '
+  const parseTeam = (s: string) => s.split(TEAM_SEP).map((x) => x.trim()).filter(Boolean)
   let teamA = $state(initial?.homeName && initial.homeName !== '–' ? initial.homeName : '')
   let teamB = $state(initial?.awayName && initial.awayName !== '–' ? initial.awayName : '')
   let category = $state(initial?.category ?? defaultCategory)
@@ -54,7 +61,11 @@
       () => ({ json: JSON.stringify(score), teamA: labelA, teamB: labelB }))
   }
   function pushLive() { if (running && editor) editor.push(JSON.stringify(score), labelA, labelB) }
+  // Only persist once the match has CONTENT (an action or a named team) — opening
+  // and abandoning a fresh match must not litter the list with a "– vs – 0:0" row.
+  const hasContent = $derived(score.matchActions.length > 0 || !!teamA.trim() || !!teamB.trim())
   function scheduleSave() {
+    if (!hasContent) return
     if (saveTimer) clearTimeout(saveTimer)
     saveTimer = setTimeout(() => { saveRow(running).catch(() => {}) }, 1200)
   }
@@ -95,15 +106,40 @@
   const doSwap = () => { score = swapSides(score); if (running) { pushLive(); scheduleSave() } }
   function onName() { if (running) pushLive(); scheduleSave() }
 
-  async function start() {
+  // A new match opens straight into the counter: stamp it, become the live editor.
+  // We do NOT persist yet — only the first action or picked team writes the row, so
+  // an opened-then-abandoned match never litters the list with a "– vs – 0:0" row.
+  function start() {
     if (mode !== 'new') return
-    ts = Date.now(); running = true; phase = 'scoring'
+    ts = Date.now(); running = true
     startLiveEditor()
-    try { await saveRow(true) } catch { /* persisted on next change */ }
-    pushLive()
   }
+  onMount(() => { if (mode === 'new') start() })
   // For editing an already-running match, take over as the live editor.
-  $effect(() => { if (phase === 'scoring' && running && !editor && mode === 'edit') startLiveEditor() })
+  $effect(() => { if (running && !editor && mode === 'edit') startLiveEditor() })
+
+  // Team chips: 1–2 players joined by " & " (like the app's teamLabel). Picking a
+  // team applies the selection; new names are added to the synced pool.
+  function applyTeam(side: 'a' | 'b', picked: string[]) {
+    const label = picked.slice(0, 2).join(TEAM_SEP)
+    if (side === 'a') teamA = label; else teamB = label
+    onName()
+  }
+  async function addToPool(name: string) {
+    if (!poolState.includes(name)) poolState = [...poolState, name]
+    try { poolState = await addPlayersToPool(ctx, [name]) } catch { /* keep local */ }
+  }
+  // Today's involvement per player in THIS category (count shown on the chips).
+  const todayKey = () => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` }
+  const involvement = $derived.by(() => {
+    const m: Record<string, number> = {}
+    for (const x of peerMatches) {
+      const dk = (() => { const d = new Date(x.at); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` })()
+      if (dk !== todayKey() || (x.category ?? '') !== category) continue
+      for (const n of new Set([...parseTeam(x.homeName), ...parseTeam(x.awayName)])) m[n] = (m[n] ?? 0) + 1
+    }
+    return m
+  })
 
   function cleanup() { if (saveTimer) clearTimeout(saveTimer); stopCountdown(); editor?.leave(); editor = null }
   async function finish() {
@@ -113,6 +149,7 @@
   }
   async function park() {
     if (saveTimer) clearTimeout(saveTimer)
+    if (!hasContent) { cleanup(); onClose(); return }   // nothing to keep
     try { await saveRow(true) } catch { err = 'Speichern fehlgeschlagen.'; return }
     cleanup(); onSaved(); onClose()   // row stays running; editor stops broadcasting
   }
@@ -121,8 +158,6 @@
     try { await discardMatchRow(ctx, ts) } catch { err = 'Verwerfen fehlgeschlagen.'; return }
     editor?.end(null, true); cleanup(); onSaved(); onClose()
   }
-  function cancel() { cleanup(); onClose() }
-
   // "Spielende" → confirm; with goals it is archived (finish), without it is
   // discarded (abandon) — exactly the app's matchEndRequest.
   const hasGoals = $derived(score.matchActions.some((a) => a.type === 'GOAL'))
@@ -150,16 +185,6 @@
 
 <div class="overlay" role="presentation">
   <div class="sheet">
-    {#if phase === 'setup'}
-      <div class="head"><strong>Neues Match</strong><button class="ghost small" onclick={cancel}>Abbrechen</button></div>
-      <label class="fld">Team links<input bind:value={teamA} list="names" placeholder="Name (z. B. Paul & Anna)" /></label>
-      <label class="fld">Team rechts<input bind:value={teamB} list="names" placeholder="Name" /></label>
-      <label class="fld">Kategorie<input bind:value={category} list="cats" placeholder="Freies Spiel" /></label>
-      <datalist id="names">{#each nameSuggestions as n}<option value={n}></option>{/each}</datalist>
-      <datalist id="cats">{#each categorySuggestions as c}<option value={c}></option>{/each}</datalist>
-      <button class="primary" onclick={start}>Spiel starten</button>
-      {#if err}<p class="err">{err}</p>{/if}
-    {:else}
       <!-- Toolbar like the app's match counter: back (parks), Spielverlauf, Rückgängig,
            Seiten tauschen, and the three-dot overflow (Teilen, Löschen…). -->
       <div class="toolbar">
@@ -184,6 +209,11 @@
         </div>
       </div>
 
+      <!-- Category chip (tap to change), like the app counter's category chip. -->
+      <div class="catrow">
+        <button class="catchip" onclick={() => (picking = 'cat')}>{category || defaultCategory}</button>
+      </div>
+
       <!-- Countdown row: [10s] [Bereit / countdown] [15s] -->
       <div class="cdrow">
         <button class="rod" onclick={() => startCountdown(ROD_SHORT)}>{ROD_SHORT}s</button>
@@ -194,24 +224,14 @@
         <button class="rod" onclick={() => startCountdown(ROD_LONG)}>{ROD_LONG}s</button>
       </div>
 
-      <!-- Names + set score -->
+      <!-- Names + set score. Tapping a side opens the player chip picker (1–2). -->
       <div class="hero">
         <div class="side a">
-          {#if editName === 'a'}
-            <input class="nin" bind:value={teamA} onblur={() => { editName = null; onName() }}
-                   onkeydown={(e) => { if (e.key === 'Enter') { editName = null; onName() } }} />
-          {:else}
-            <button class="nm a" onclick={() => (editName = 'a')}>{labelA}</button>
-          {/if}
+          <button class="nm a" onclick={() => (picking = 'a')}>{labelA}</button>
         </div>
         <div class="cur">{sets.a} : {sets.b}</div>
         <div class="side b">
-          {#if editName === 'b'}
-            <input class="nin" bind:value={teamB} onblur={() => { editName = null; onName() }}
-                   onkeydown={(e) => { if (e.key === 'Enter') { editName = null; onName() } }} />
-          {:else}
-            <button class="nm b" onclick={() => (editName = 'b')}>{labelB}</button>
-          {/if}
+          <button class="nm b" onclick={() => (picking = 'b')}>{labelB}</button>
         </div>
       </div>
 
@@ -263,7 +283,22 @@
           </div>
         </div>
       {/if}
-    {/if}
+
+      {#if picking}
+        <ChoicePicker
+          title={picking === 'cat' ? 'Kategorie' : (picking === 'a' ? 'Team links' : 'Team rechts')}
+          items={picking === 'cat' ? categorySuggestions : poolState}
+          selected={picking === 'cat' ? [category] : (picking === 'a' ? parseTeam(teamA) : parseTeam(teamB))}
+          maxSelection={picking === 'cat' ? 1 : 2}
+          counts={picking === 'cat' ? {} : involvement}
+          allowAdd={picking !== 'cat'}
+          onAdd={(n) => addToPool(n)}
+          onPicked={(names) => {
+            if (picking === 'cat') { category = names[0] ?? category; scheduleSave() }
+            else if (picking === 'a' || picking === 'b') applyTeam(picking, names)
+          }}
+          onClose={() => (picking = null)} />
+      {/if}
   </div>
 </div>
 
@@ -273,21 +308,17 @@
   .sheet { width: 100%; max-width: 440px; max-height: 94vh; overflow-y: auto; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 12px;
     padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
-  .head { display: flex; align-items: center; justify-content: space-between; }
-  .head strong { font-size: 17px; }
-  .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--on-surface-variant); }
-  input { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--outline);
-    background: var(--surface); color: var(--on-surface); font-size: 16px; }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
   .side { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
   .nm { background: transparent; border: 0; font-size: 18px; font-weight: 800; cursor: pointer;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nm.a { color: var(--team-a); } .nm.b { color: var(--team-b); }
-  .nin { font-size: 16px; padding: 6px 8px; width: 100%; box-sizing: border-box; }
-  .setsw { font-size: 12px; color: var(--on-surface-variant); }
   .cur { font-size: 40px; font-weight: 800; line-height: 1; padding: 0 8px; }
   /* Toolbar (match counter) */
   .toolbar { display: flex; align-items: center; justify-content: space-between; }
+  .catrow { display: flex; justify-content: center; }
+  .catchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
+    padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--on-surface); cursor: pointer; }
   .tactions { display: flex; align-items: center; gap: 2px; }
   .tbtn { background: transparent; border: 0; color: var(--on-surface-variant); cursor: pointer;
     width: 40px; height: 40px; border-radius: 50%; font-size: 20px; display: inline-flex;
