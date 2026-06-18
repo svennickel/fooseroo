@@ -650,6 +650,8 @@
     </div>
   </div>
 
+  <!-- Only this inner region scrolls; the topbar above and bottom nav stay fixed. -->
+  <div class="appscroll">
   {#if showInstall}
     <div class="install">
       {#if canInstall}
@@ -904,6 +906,7 @@
     <p>Melde dich an, um deine Matches &amp; Trainings (und geteilte Inhalte) hier zu sehen.</p>
     {@render authForm()}
   {/if}
+  </div>
 </main>
 
 {#if gate}
@@ -1005,16 +1008,19 @@
      is no seam/line; the body carries the subtle gradient (no fixed attachment,
      which caused a visible band at the safe-area edge). */
   :global(html) { background: var(--bg); }
-  /* Stop the document rubber-band/overscroll so the sticky top bar can't drift on
-     iOS (it was "scrolling away slightly" with the bounce). */
-  :global(html), :global(body) { overscroll-behavior-y: none; }
+  /* App-shell: the document itself never scrolls — the top bar and the bottom nav
+     stay fixed, and only the inner .appscroll region scrolls. overscroll-behavior
+     also kills the iOS rubber-band that made the header drift. */
+  :global(html), :global(body) { height: 100%; overflow: hidden; overscroll-behavior: none; }
   :global(body) { margin: 0; font-family: system-ui, -apple-system, "Roboto", sans-serif;
-    min-height: 100vh;
     background: linear-gradient(180deg, var(--bg) 0%, var(--bg-deep) 100%);
     color: var(--on-surface); }
-  main { max-width: 440px; margin: 0 auto;
-    padding: 0 16px 96px;   /* top spacing comes from the sticky .topbar below */
-    display: flex; flex-direction: column; gap: 14px; }
+  main { max-width: 440px; margin: 0 auto; height: 100vh; height: 100dvh;
+    display: flex; flex-direction: column; }
+  /* The single scrollable region between the fixed header and the fixed bottom nav. */
+  .appscroll { flex: 1; min-height: 0; overflow-y: auto; -webkit-overflow-scrolling: touch;
+    display: flex; flex-direction: column; gap: 14px;
+    padding: 0 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
   /* Logo + wordmark like the app's branding: large round logo, "Fooseroo" bold in
      the brand blue, same family/colour, similar position. */
   h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
@@ -1023,9 +1029,9 @@
   /* Top bar with the three-dot overflow menu (top-right), like the app. Sticky at the
      top (like the fixed bottom nav) with a solid background incl. the status-bar
      safe area, so it stays put and content scrolls UNDER it instead of past it. */
-  .topbar { position: sticky; top: 0; z-index: 40; background: var(--bg);
+  .topbar { flex: 0 0 auto; z-index: 40; background: var(--bg);
     display: flex; align-items: center; justify-content: space-between; gap: 8px;
-    margin: 0 -16px; padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 10px; }
+    padding: calc(6px + env(safe-area-inset-top, 0px)) 16px 10px; }
   .menuwrap { position: relative; flex: 0 0 auto; }
   .iconbtn { background: transparent; border: 0; padding: 6px; cursor: pointer;
     color: var(--on-surface-variant); border-radius: 50%; display: inline-flex; }
