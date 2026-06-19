@@ -3,16 +3,35 @@
   //   Zeitmessung (measure) · Zeit & Erfolg (measure_success) · Erfolgsquote (outcome)
   // with a count-up timer + person/category, writing byte-compatible training_entries.
   import { saveMeasure, saveOutcome } from './trainingstore'
-  import type { Ctx } from './data'
+  import { loadTrainingModes, saveTrainingModes, addPlayersToPool, dayKey, type Ctx, type TrainingItem } from './data'
+  import ChoicePicker from './ChoicePicker.svelte'
 
-  let { ctx, nameSuggestions, modeSuggestions, onClose, onSaved }:
-    { ctx: Ctx; nameSuggestions: string[]; modeSuggestions: string[]
+  let { ctx, pool, peerTraining, onClose, onSaved }:
+    { ctx: Ctx; pool: string[]; peerTraining: TrainingItem[]
       onClose: () => void; onSaved: () => void } = $props()
 
   type Kind = 'measure' | 'measure_success' | 'outcome'
   let kind = $state<Kind>('measure')
   let name = $state('')
   let mode = $state('')
+  // Player pool (chips, like Matches) + per-kind synced mode list (chips, like categories).
+  let poolState = $state<string[]>([...pool])
+  let modes = $state<string[]>([])
+  let picking = $state<'name' | 'mode' | null>(null)
+  $effect(() => { loadTrainingModes(ctx, kind).then((m) => { modes = m }).catch(() => {}) })
+
+  // Today's counts (this kind) for the chip badges — people and modes already trained.
+  const today = (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` })()
+  const nameCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.name) m[t.name] = (m[t.name] ?? 0) + 1; return m })
+  const modeCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.mode) m[t.mode] = (m[t.mode] ?? 0) + 1; return m })
+
+  async function addName(n: string) {
+    if (!poolState.includes(n)) poolState = [...poolState, n]
+    try { poolState = await addPlayersToPool(ctx, [n]) } catch { /* keep local */ }
+  }
+  async function addMode(m: string) {
+    if (!modes.includes(m)) { modes = [...modes, m]; try { await saveTrainingModes(ctx, kind, modes) } catch { /* keep local */ } }
+  }
   let limit = $state('')                  // optional time limit in seconds
   let busy = $state(false)
   let err = $state('')
@@ -56,10 +75,11 @@
       <button class:on={kind === 'outcome'} onclick={() => { kind = 'outcome' }}>Erfolgsquote</button>
     </div>
 
-    <label class="fld">Name<input bind:value={name} list="tnames" placeholder="Person" /></label>
-    <label class="fld">Kategorie<input bind:value={mode} list="tmodes" placeholder="z. B. Bandenpass" /></label>
-    <datalist id="tnames">{#each nameSuggestions as n}<option value={n}></option>{/each}</datalist>
-    <datalist id="tmodes">{#each modeSuggestions as m}<option value={m}></option>{/each}</datalist>
+    <!-- Player + category via chip pickers (like Matches), backed by the synced pool/mode lists. -->
+    <div class="pick"><span class="plabel">Name</span>
+      <button class="pchip" class:set={!!name} onclick={() => (picking = 'name')}>{name || 'Person wählen'}</button></div>
+    <div class="pick"><span class="plabel">Kategorie</span>
+      <button class="pchip" class:set={!!mode} onclick={() => (picking = 'mode')}>{mode || 'Kategorie wählen'}</button></div>
 
     {#if kind === 'outcome'}
       <div class="outrow">
@@ -88,6 +108,16 @@
       {/if}
     {/if}
     {#if err}<p class="err">{err}</p>{/if}
+
+    {#if picking === 'name'}
+      <ChoicePicker title="Person" items={poolState} selected={name ? [name] : []} maxSelection={1}
+        counts={nameCounts} onAdd={(n) => addName(n)}
+        onPicked={(names) => { name = names[0] ?? name }} onClose={() => (picking = null)} />
+    {:else if picking === 'mode'}
+      <ChoicePicker title="Kategorie" items={modes} selected={mode ? [mode] : []} maxSelection={1}
+        counts={modeCounts} onAdd={(m) => addMode(m)}
+        onPicked={(names) => { mode = names[0] ?? mode }} onClose={() => (picking = null)} />
+    {/if}
   </div>
 </div>
 
@@ -107,6 +137,12 @@
   .kinds button.on { background: color-mix(in srgb, var(--team-a) 16%, transparent);
     border-color: var(--team-a); color: var(--team-a); }
   .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--on-surface-variant); }
+  .pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+  .plabel { font-size: 13px; color: var(--on-surface-variant); }
+  .pchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
+    padding: 9px 16px; font-size: 14px; color: var(--on-surface-variant); cursor: pointer; max-width: 70%;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pchip.set { color: var(--on-surface); font-weight: 700; border-color: var(--team-a); }
   input { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--outline);
     background: var(--surface); color: var(--on-surface); font-size: 16px; }
   .timer { font-size: 44px; font-weight: 800; text-align: center; line-height: 1; }

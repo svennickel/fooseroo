@@ -109,6 +109,43 @@ export async function addPlayersToPool(ctx: Ctx, names: string[]): Promise<strin
   return merged
 }
 
+// Training "categories" (the app calls them modes) are per training type, synced via
+// app_config like match_categories: time_measure_modes (Zeitmessung), timed_outcome_modes
+// (Zeit & Erfolg), outcome_modes (Erfolgsquote) — group-prefixed for a group context.
+const TRAINING_MODE_KEY: Record<string, string> = {
+  measure: 'time_measure_modes',
+  measure_success: 'timed_outcome_modes',
+  outcome: 'outcome_modes'
+}
+
+export async function loadTrainingModes(ctx: Ctx, kind: string): Promise<string[]> {
+  const base = TRAINING_MODE_KEY[kind]
+  if (!base) return []
+  try {
+    const key = `${ctx ? `g:${ctx}:` : ''}${base}`
+    const { data, error } = await ctxFilter(
+      supabase.from('app_config').select('value').eq('key', key), ctx)
+    if (error || !data) return []
+    const out = new Set<string>()
+    for (const row of data as { value: unknown }[]) {
+      if (Array.isArray(row.value)) for (const s of row.value) if (typeof s === 'string' && s.trim()) out.add(s)
+    }
+    return [...out]
+  } catch { return [] }
+}
+
+export async function saveTrainingModes(ctx: Ctx, kind: string, list: string[]): Promise<void> {
+  const base = TRAINING_MODE_KEY[kind]
+  if (!base) return
+  const { data: sess } = await supabase.auth.getSession()
+  const uid = sess.session?.user.id
+  if (!uid) throw new Error('not_authenticated')
+  const key = `${ctx ? `g:${ctx}:` : ''}${base}`
+  const { error } = await supabase.from('app_config')
+    .upsert({ owner_id: uid, group_id: ctx, key, value: list }, { onConflict: 'owner_id,key' })
+  if (error) throw error
+}
+
 // My per-group display name (group_names: one row per group+user), or null if unset.
 // Best-effort — never throws (the UI just shows "festlegen" if it can't read).
 export async function myGroupName(groupId: string): Promise<string | null> {

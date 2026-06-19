@@ -112,7 +112,6 @@
       .map((s) => s.trim()).filter((s) => s && s !== '–'))])
   // Training name + category suggestions (from existing entries).
   const trainingNames = $derived([...new Set(training.map((t) => t.name).filter(Boolean))] as string[])
-  const trainingModes = $derived([...new Set(training.map((t) => t.mode).filter(Boolean))] as string[])
   // Counts shown in the date/category pickers (like the app): matches per day (all
   // categories) and per category on the selected day.
   const dayCount = (d: string) => matches.filter((m) => dayOf(m.at) === d).length
@@ -931,8 +930,7 @@
                   onClose={() => (showCatEditor = false)} onChanged={() => reloadData(true)} />
 {/if}
 {#if trainingEntry}
-  <TrainingEntry {ctx} nameSuggestions={trainingNames.length ? trainingNames : playerSuggestions}
-                 modeSuggestions={trainingModes}
+  <TrainingEntry {ctx} pool={[...new Set([...playerPool, ...playerSuggestions, ...trainingNames])]} peerTraining={training}
                  onClose={() => (trainingEntry = false)} onSaved={() => reloadData(true)} />
 {/if}
 
