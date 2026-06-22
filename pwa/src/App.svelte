@@ -765,8 +765,8 @@
       <p class="hint">Lädt…</p>
     {:else if !entitled}
       <div class="card gateinfo">
-        <p>Die Funktionen der Web-Variante stehen zur Verfügung, wenn du <strong>Mitglied einer Trainingsgruppe</strong> bist oder über die <strong>Android-App einen „Cloud &amp; Sync"-Tarif</strong> hast.</p>
-        <p class="hint">Tritt einer Trainingsgruppe per Code bei, oder richte „Cloud &amp; Sync" in der Android-App ein — danach erscheinen deine Inhalte hier automatisch.</p>
+        <p><strong>Backup &amp; Sync und Trainingsgruppen sind in Vorbereitung.</strong> Wir testen diese Funktionen gerade mit einem eingeladenen Nutzerkreis und geben sie anschließend für alle frei.</p>
+        <p class="hint">Du hast bereits Zugang, wenn du <strong>Mitglied einer Trainingsgruppe</strong> bist oder über die <strong>Android-App „Backup &amp; Sync"</strong> nutzt. Tritt einer Gruppe per Code bei oder richte „Backup &amp; Sync" in der Android-App ein — danach erscheinen deine Inhalte hier automatisch.</p>
         <div class="gatebtns">
           <button onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
           <a class="ghost-link" href="https://play.google.com/store/apps/details?id=de.snickel.fooser" target="_blank" rel="noopener">Android-App</a>
