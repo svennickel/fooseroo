@@ -4,7 +4,7 @@
   import { requestCode, verifyCode } from './lib/auth'
   import { parseRoute, resolveSharedMatch, resolveSharedTraining, joinWithCode, groupInvitePreview,
     type SharedMatch, type SharedTraining, type Route, type InvitePreview } from './lib/shared'
-  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, loadPlayerPool, winnerSide, formatElapsed,
+  import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, loadPlayerPool, winnerSide,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows, setsWon } from './lib/match'
   import { watchLiveMatch, liveChannelId } from './lib/livematch'
@@ -22,7 +22,6 @@
   import TrainingEntry from './lib/TrainingEntry.svelte'
   import TrainingChart from './lib/TrainingChart.svelte'
   import Evaluation from './lib/Evaluation.svelte'
-  import TrainingRowMenu from './lib/TrainingRowMenu.svelte'
   import { isIOS } from './lib/platform'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
@@ -37,13 +36,10 @@
   let showDatePicker = $state(false)
   let showCatPicker = $state(false)
   let showCatEditor = $state(false)
-  let personFilter = $state('')        // training person report ('' = all people)
-  let showPersonPicker = $state(false)
   let trainingEntry = $state(false)
   let trainingEval = $state<'day' | 'person' | null>(null)
   let entryKind = $state<'measure' | 'measure_success' | 'outcome'>('measure')
   function openEntry(k: 'measure' | 'measure_success' | 'outcome') { entryKind = k; trainingEntry = true }
-  let editingRow = $state<TrainingItem | null>(null)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -136,8 +132,6 @@
   const catCount = (c: string) => matches.filter((m) => m.category === c && dayOf(m.at) === dayFilter).length
   const shownMatches = $derived(matches.filter((m) =>
     (catFilter === '' || m.category === catFilter) && (dayFilter === '' || dayOf(m.at) === dayFilter)))
-  const shownTraining = $derived(training.filter((t) =>
-    (dayFilter === '' || dayOf(t.at) === dayFilter) && (personFilter === '' || t.name === personFilter)))
 
   // Matches / Training tabs (like the app's areas), persisted with the selectors.
   let tab = $state<'matches' | 'training'>('matches')
@@ -159,9 +153,6 @@
   function restore(): { tab?: string; ctx?: Ctx; cat?: string } {
     try { return JSON.parse(localStorage.getItem(LS) ?? '{}') } catch { return {} }
   }
-
-  const kindLabel = (k: string) =>
-    k === 'measure' ? t('training.kind_measure') : k === 'measure_success' ? t('training.kind_success') : t('training.kind_outcome')
 
   // Match detail / live view
   let selected = $state<MatchItem | null>(null)
@@ -819,6 +810,7 @@
         </div>
       </div>
     {:else}
+    {#if tab === 'matches'}
     <div class="filters">
       <div class="fchipwrap">
         <button class="fchip" aria-haspopup="menu" onclick={() => (showDatePicker = !showDatePicker)}>
@@ -837,46 +829,27 @@
           </div>
         {/if}
       </div>
-      {#if tab === 'matches'}
-        <div class="fchipwrap">
-          <button class="fchip" aria-haspopup="menu" onclick={() => (showCatPicker = !showCatPicker)}>
-            <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z"/></svg>
-            <span class="fct">{catFilter || t('filter.category')}</span>
-            <span class="caret">▾</span>
-          </button>
-          {#if showCatPicker}
-            <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showCatPicker = false)}></button>
-            <div class="menu picker" role="menu">
-              {#each categories as c}
-                <button role="menuitem" class:sel={c === catFilter} onclick={() => { showCatPicker = false; catFilter = c }}>
-                  <span>{c === catFilter ? '✓ ' : ''}{c}</span><span class="cnt">{catCount(c)}</span>
-                </button>
-              {/each}
-              <div class="menu-sep"></div>
-              <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>{t('filter.manage_cats')}</button>
-            </div>
-          {/if}
-        </div>
-      {:else}
-        <!-- Training: person filter → per-person report (with "alle Tage" = cross-day). -->
-        <div class="fchipwrap">
-          <button class="fchip" aria-haspopup="menu" onclick={() => (showPersonPicker = !showPersonPicker)}>
-            <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
-            <span class="fct">{personFilter || t('filter.all_persons')}</span>
-            <span class="caret">▾</span>
-          </button>
-          {#if showPersonPicker}
-            <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showPersonPicker = false)}></button>
-            <div class="menu picker" role="menu">
-              <button role="menuitem" class:sel={personFilter === ''} onclick={() => { showPersonPicker = false; personFilter = '' }}>{personFilter === '' ? '✓ ' : ''}{t('filter.all_persons')}</button>
-              {#each trainingNames as n}
-                <button role="menuitem" class:sel={n === personFilter} onclick={() => { showPersonPicker = false; personFilter = n }}>{n === personFilter ? '✓ ' : ''}{n}</button>
-              {/each}
-            </div>
-          {/if}
-        </div>
-      {/if}
+      <div class="fchipwrap">
+        <button class="fchip" aria-haspopup="menu" onclick={() => (showCatPicker = !showCatPicker)}>
+          <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z"/></svg>
+          <span class="fct">{catFilter || t('filter.category')}</span>
+          <span class="caret">▾</span>
+        </button>
+        {#if showCatPicker}
+          <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showCatPicker = false)}></button>
+          <div class="menu picker" role="menu">
+            {#each categories as c}
+              <button role="menuitem" class:sel={c === catFilter} onclick={() => { showCatPicker = false; catFilter = c }}>
+                <span>{c === catFilter ? '✓ ' : ''}{c}</span><span class="cnt">{catCount(c)}</span>
+              </button>
+            {/each}
+            <div class="menu-sep"></div>
+            <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>{t('filter.manage_cats')}</button>
+          </div>
+        {/if}
+      </div>
     </div>
+    {/if}
 
     {#if retention}
       <p class="retention">{t('join.retention', retention.days)}</p>
@@ -931,35 +904,6 @@
         <button class="hubcard rec" onclick={() => openEntry('measure_success')}>
           <span class="ht">{t('hub.timesuccess')}</span><span class="hd">{t('hub.timesuccess_desc')}</span></button>
       </div>
-      {#if matchesState === 'loading'}
-        <p class="hint">{t('common.loading')}</p>
-      {:else if shownTraining.length === 0}
-        <p class="hint">{t('training.empty')}{#if dayFilter}{t('training.empty_day')}{/if}.</p>
-      {:else}
-        <h4 class="recenth">{t('hub.recent')}</h4>
-        <TrainingChart items={shownTraining} {ctx} />
-        <ul class="list">
-          {#each shownTraining.slice(0, 50) as t}
-            <li class="card">
-              <button class="trow trowbtn" onclick={() => (editingRow = t)}>
-                <span class="tleft">
-                  <strong>{t.name || '—'}</strong>
-                  <span class="meta">{kindLabel(t.kind)}{#if t.mode} · {t.mode}{/if}</span>
-                </span>
-                <span class="tval">
-                  {#if t.kind === 'outcome'}
-                    <span class={t.success ? 'ok' : 'bad'}>{t.success ? '✓' : '✗'}</span>
-                  {:else}
-                    {#if t.elapsedMs !== undefined}{formatElapsed(t.elapsedMs)}{/if}
-                    {#if t.kind === 'measure_success'}<span class={t.success ? 'ok' : 'bad'}>{t.success ? ' ✓' : ' ✗'}</span>{/if}
-                  {/if}
-                </span>
-                <span class="tchev">›</span>
-              </button>
-            </li>
-          {/each}
-        </ul>
-      {/if}
     {/if}
     {/if}
 
@@ -999,11 +943,6 @@
   <Evaluation view={trainingEval} {ctx} items={training} {matches}
               persons={[...new Set([...playerPool, ...trainingNames])]}
               onClose={() => (trainingEval = null)} onChanged={() => reloadData(true)} />
-{/if}
-{#if editingRow}
-  <TrainingRowMenu {ctx} entry={editingRow} {kindLabel}
-                   pool={[...new Set([...playerPool, ...trainingNames])]}
-                   onClose={() => (editingRow = null)} onChanged={() => reloadData(true)} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
@@ -1205,14 +1144,6 @@
   .picker { left: 0; right: auto; min-width: 200px; max-height: 60vh; overflow-y: auto; }
   .picker button { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
   .picker .cnt { color: var(--on-surface-variant); font-size: 13px; }
-  .trow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
-  .trow .meta { margin-left: 8px; }
-  .trowbtn { width: 100%; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
-  .trowbtn:active { background: var(--surface-variant); }
-  .tleft { display: flex; align-items: baseline; min-width: 0; }
-  .tval { font-weight: 700; white-space: nowrap; margin-left: auto; }
-  .tchev { color: var(--on-surface-variant); font-size: 18px; margin-left: 8px; flex: 0 0 auto; }
-  .ok { color: var(--ok); } .bad { color: var(--bad); }
   .sharedday { margin: 4px 0 10px; font-size: 18px; }
   /* training hub — cards like the app's TrainingHub */
   .hub { display: flex; flex-direction: column; gap: 8px; }
@@ -1222,7 +1153,6 @@
   .hubcard .ht { font-size: 16px; font-weight: 800; color: var(--team-a); }
   .hubcard.rec .ht { color: var(--on-surface); }
   .hubcard .hd { font-size: 13px; color: var(--on-surface-variant); }
-  .recenth { margin: 14px 0 2px; font-size: 13px; color: var(--on-surface-variant); font-weight: 700; }
 
   /* clickable list cards — native bg_table_card: 10dp padding */
   .card-btn { width: 100%; text-align: left; color: inherit; font: inherit; font-weight: 400;

@@ -92,7 +92,7 @@ const de: Record<string, string> = {
   'training.hint_success': 'Knopf startet die Messung – dann ✓/✗ zum Stoppen.',
   'training.hint_measure': 'Knopf startet die Messung – Anzeige oder „Stopp“ beendet sie.',
   'training.save_failed': 'Speichern fehlgeschlagen.',
-  'training.person': 'Person',
+  'training.person': 'Person', 'training.undo_last': '↶ Letzte rückgängig', 'training.no_entries': 'Noch keine Einträge an diesem Tag.',
 
   // training — category editor
   'cat.title': 'Kategorie „%s“', 'cat.std': 'Standard',
@@ -286,7 +286,7 @@ const en: Record<string, string> = {
   'training.hint_success': 'Button starts the measurement – then ✓/✗ to stop.',
   'training.hint_measure': 'Button starts the measurement – the display or “Stop” ends it.',
   'training.save_failed': 'Saving failed.',
-  'training.person': 'Person',
+  'training.person': 'Person', 'training.undo_last': '↶ Undo last', 'training.no_entries': 'No entries on this day yet.',
 
   'cat.title': 'Category “%s”', 'cat.std': 'Standard',
   'cat.buttons': 'Offered buttons', 'cat.both': '%1$s & %2$s', 'cat.only': 'only %s',

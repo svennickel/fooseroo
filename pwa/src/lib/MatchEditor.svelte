@@ -306,11 +306,12 @@
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; z-index: 940; background: rgba(0,0,0,.5);
-    display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { width: 100%; max-width: 440px; max-height: 94vh; overflow-y: auto; background: var(--bg);
-    border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 12px;
-    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* Full-screen like the Android match counter (not a bottom sheet) — it needs the room. */
+  .overlay { position: fixed; inset: 0; z-index: 940; background: var(--bg);
+    display: flex; align-items: stretch; justify-content: center; }
+  .sheet { width: 100%; max-width: 480px; height: 100%; overflow-y: auto; background: var(--bg);
+    border-radius: 0; display: flex; flex-direction: column; gap: 12px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
   .side { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
   .nm { background: transparent; border: 0; font-size: 18px; font-weight: 800; cursor: pointer;

@@ -153,11 +153,12 @@
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; z-index: 945; background: rgba(0,0,0,.5);
-    display: flex; align-items: flex-end; justify-content: center; }
-  .sheet { width: 100%; max-width: 440px; max-height: 94vh; overflow-y: auto; background: var(--bg);
-    border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 12px;
-    padding: 14px 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* Full-screen like the app's evaluation screens (not a bottom sheet). */
+  .overlay { position: fixed; inset: 0; z-index: 945; background: var(--bg);
+    display: flex; align-items: stretch; justify-content: center; }
+  .sheet { width: 100%; max-width: 480px; height: 100%; overflow-y: auto; background: var(--bg);
+    border-radius: 0; display: flex; flex-direction: column; gap: 12px;
+    padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
   .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .head strong { font-size: 17px; }
   .hbtns { display: flex; gap: 6px; }
