@@ -5,6 +5,7 @@
   // done. Acceptance + onboarding-shown + analytics consent persist in the browser.
   import Terms from './Terms.svelte'
   import { termsAccepted, markTermsAccepted, markOnboardingShown, analyticsEnabled, setAnalytics } from './prefs'
+  import { t } from './i18n.svelte'
 
   let { onDone }: { onDone: () => void } = $props()
 
@@ -30,40 +31,35 @@
       <div class="scroll"><Terms /></div>
       <label class="agree">
         <input type="checkbox" bind:checked={agreed} />
-        <span>Ich habe die Nutzungs- und Datenschutzbedingungen gelesen und akzeptiere sie.</span>
+        <span>{t('ob.terms_text')}</span>
       </label>
-      <button class="primary" disabled={!agreed} onclick={accept}>Akzeptieren &amp; Loslegen</button>
+      <button class="primary" disabled={!agreed} onclick={accept}>{t('ob.accept_btn')}</button>
     {:else}
       <div class="scroll">
-        <h2>Willkommen bei Fooseroo</h2>
-        <p class="intro">Drei Bereiche, ein Ziel: mehr aus deinem Tischfußball machen.</p>
+        <h2>{t('ob.welcome')}</h2>
+        <p class="intro">{t('ob.intro')}</p>
 
         <div class="area">
-          <div class="atitle">🏆&nbsp; Liga <sup>¹</sup></div>
-          <p>Verfolge deine Ligen live – Tabellen, Mannschaften, Spieler und jede Begegnung mit
-            Live-Ticker. Setz ★ auf deine Favoriten und lass dich benachrichtigen oder vorlesen,
-            sobald es losgeht.</p>
+          <div class="atitle">{t('ob.liga_title')} <sup>¹</sup></div>
+          <p>{t('ob.liga_text')}</p>
         </div>
         <div class="area">
-          <div class="atitle">⚪&nbsp; Matches</div>
-          <p>Zähl deine eigenen Spiele mit: Punkte, Sätze und Statistik in Echtzeit – und teile das
-            Ergebnis als schicke Grafik<sup>¹</sup>.</p>
+          <div class="atitle">{t('ob.matches_title')}</div>
+          <p>{t('ob.matches_text')}<sup>¹</sup>.</p>
         </div>
         <div class="area">
-          <div class="atitle">⏱️&nbsp; Training</div>
-          <p>Werde messbar besser – Zeitmessung, Zeitgefühl und Erfolgsquote, mit Verlauf,
-            Tageszusammenfassung und Auswertung je Person.</p>
+          <div class="atitle">{t('ob.training_title')}</div>
+          <p>{t('ob.training_text')}</p>
         </div>
 
         <label class="agree toggle">
-          <span>Unterstütze die Weiterentwicklung über anonyme Statistiken</span>
+          <span>{t('settings.stats')}</span>
           <span class="sw"><input type="checkbox" bind:checked={stats} /><span class="slider"></span></span>
         </label>
-        <p class="note">Ganz freiwillig – jederzeit in den Einstellungen änderbar.</p>
-        <p class="fn"><sup>¹</sup> Diese Funktion ist der Fooseroo-App für Android vorbehalten und in
-          der Webversion nicht enthalten.</p>
+        <p class="note">{t('ob.stats_note')}</p>
+        <p class="fn"><sup>¹</sup>{t('ob.footnote')}</p>
       </div>
-      <button class="primary" onclick={start}>Los geht's!</button>
+      <button class="primary" onclick={start}>{t('ob.start')}</button>
     {/if}
   </div>
 </div>

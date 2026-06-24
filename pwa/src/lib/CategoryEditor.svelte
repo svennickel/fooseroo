@@ -3,6 +3,7 @@
   // (also moves the matches), reorder, delete (reassigning its matches to another
   // category). Persists to app_config via saveCategories + reassignCategory.
   import { saveCategories, reassignCategory, type Ctx } from './data'
+  import { t } from './i18n.svelte'
 
   let { ctx, categories, defaultCategory, onClose, onChanged }:
     { ctx: Ctx; categories: string[]; defaultCategory: string
@@ -20,7 +21,7 @@
   async function run(fn: () => Promise<void>) {
     if (busy) return
     busy = true; err = ''
-    try { await fn(); onChanged() } catch { err = 'Aktion fehlgeschlagen.' } finally { busy = false }
+    try { await fn(); onChanged() } catch { err = t('ce.action_failed') } finally { busy = false }
   }
 
   function add() {
@@ -33,7 +34,7 @@
   function saveRename(i: number) {
     const v = editVal.trim(); const from = list[i]
     if (!v || v === from) { editIdx = null; return }
-    if (list.includes(v)) { err = 'Diese Kategorie gibt es schon.'; return }
+    if (list.includes(v)) { err = t('ce.exists'); return }
     const next = list.map((c, k) => (k === i ? v : c)); list = next; editIdx = null
     // Move matches to the new name, then persist the renamed list.
     run(async () => { await reassignCategory(ctx, from, v); await saveCategories(ctx, next) })
@@ -59,7 +60,7 @@
 
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget && !busy) onClose() }} role="presentation">
   <div class="sheet">
-    <div class="head"><strong>Kategorien</strong><button class="ghost small" onclick={onClose}>Schließen</button></div>
+    <div class="head"><strong>{t('ce.head')}</strong><button class="ghost small" onclick={onClose}>{t('common.close')}</button></div>
     {#if err}<p class="err">{err}</p>{/if}
     <div class="scroll">
       {#each list as c, i (c + i)}
@@ -69,27 +70,27 @@
             <button class="ghost small" onclick={() => saveRename(i)} disabled={busy}>OK</button>
             <button class="ghost small" onclick={() => (editIdx = null)}>×</button>
           {:else if delIdx === i}
-            <span class="nm">„{c}" löschen → Matches nach:</span>
+            <span class="nm">{t('ce.delete_to', c)}</span>
             <select bind:value={delTarget}>
-              {#each list.filter((_, k) => k !== i) as t}<option value={t}>{t}</option>{/each}
+              {#each list.filter((_, k) => k !== i) as cat}<option value={cat}>{cat}</option>{/each}
             </select>
-            <button class="danger small" onclick={confirmDelete} disabled={busy}>Löschen</button>
+            <button class="danger small" onclick={confirmDelete} disabled={busy}>{t('common.delete')}</button>
             <button class="ghost small" onclick={() => (delIdx = null)}>×</button>
           {:else}
             <span class="nm">{c}</span>
             <div class="ctl">
-              <button class="ic" onclick={() => move(i, -1)} disabled={busy || i === 0} aria-label="hoch">▲</button>
-              <button class="ic" onclick={() => move(i, 1)} disabled={busy || i === list.length - 1} aria-label="runter">▼</button>
-              <button class="ghost small" onclick={() => startRename(i)} disabled={busy}>Umbenennen</button>
-              {#if list.length > 1}<button class="ic del" onclick={() => askDelete(i)} disabled={busy} aria-label="löschen">🗑</button>{/if}
+              <button class="ic" onclick={() => move(i, -1)} disabled={busy || i === 0} aria-label={t('a11y.up')}>▲</button>
+              <button class="ic" onclick={() => move(i, 1)} disabled={busy || i === list.length - 1} aria-label={t('a11y.down')}>▼</button>
+              <button class="ghost small" onclick={() => startRename(i)} disabled={busy}>{t('ce.rename')}</button>
+              {#if list.length > 1}<button class="ic del" onclick={() => askDelete(i)} disabled={busy} aria-label={t('common.delete')}>🗑</button>{/if}
             </div>
           {/if}
         </div>
       {/each}
     </div>
     <div class="addrow">
-      <input bind:value={adding} placeholder="Neue Kategorie" onkeydown={(e) => { if (e.key === 'Enter') add() }} />
-      <button class="primary" onclick={add} disabled={busy || !adding.trim()}>Hinzufügen</button>
+      <input bind:value={adding} placeholder={t('ce.new_ph')} onkeydown={(e) => { if (e.key === 'Enter') add() }} />
+      <button class="primary" onclick={add} disabled={busy || !adding.trim()}>{t('common.add')}</button>
     </div>
   </div>
 </div>

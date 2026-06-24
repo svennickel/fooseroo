@@ -8,6 +8,7 @@
     regenerateJoinCode, configureJoin, setResultRetention, deleteGroup,
     type Member, type GroupSettings
   } from './data'
+  import { t } from './i18n.svelte'
 
   let { groupId, groupName, myUserId, onClose, onChanged }:
     { groupId: string; groupName: string; myUserId: string | null;
@@ -32,18 +33,18 @@
       members = await groupMembers(groupId)
       settings = await groupSettings(groupId)
       retDays = settings?.retentionDays != null ? String(settings.retentionDays) : ''
-    } catch { err = 'Konnte die Gruppe nicht laden.' }
+    } catch { err = t('gm.load_failed') }
     finally { loading = false }
   }
   $effect(() => { load() })
 
   const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC' } catch { return 'UTC' } })()
-  const roleLabel = (r: string) => r === 'owner' ? 'Inhaber:in' : r === 'moderator' ? 'Moderator:in' : 'Mitglied'
+  const roleLabel = (r: string) => r === 'owner' ? t('acc.owner') : r === 'moderator' ? t('gm.moderator') : t('gm.member')
 
   async function run(fn: () => Promise<void>) {
     if (busy) return
     busy = true; err = ''
-    try { await fn(); await load() } catch { err = 'Aktion fehlgeschlagen.' } finally { busy = false }
+    try { await fn(); await load() } catch { err = t('ce.action_failed') } finally { busy = false }
   }
   const changeRole = (m: Member, role: string) => run(() => setMemberRole(groupId, m.userId, role))
   const changeAccess = (m: Member, access: string) => run(() => setMemberAccess(groupId, m.userId, access))
@@ -60,19 +61,19 @@
     if (busy || delConfirm.trim() !== groupName.trim()) return
     busy = true; err = ''
     try { await deleteGroup(groupId); onChanged(); onClose() }
-    catch { err = 'Löschen fehlgeschlagen.'; busy = false }
+    catch { err = t('gm.delete_failed'); busy = false }
   }
 </script>
 
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
   <div class="sheet">
     <div class="head">
-      <strong>{groupName} · Verwalten</strong>
-      <button class="ghost small" onclick={onClose}>Schließen</button>
+      <strong>{groupName} · {t('acc.manage')}</strong>
+      <button class="ghost small" onclick={onClose}>{t('common.close')}</button>
     </div>
 
     {#if loading}
-      <p class="hint">Lädt…</p>
+      <p class="hint">{t('common.loading')}</p>
     {:else}
       <div class="scroll">
         {#if err}<p class="err">{err}</p>{/if}
@@ -80,20 +81,20 @@
         <!-- Join code (managers) -->
         {#if isManager && settings}
           <div class="sec">
-            <div class="slabel">Beitritts-Code</div>
+            <div class="slabel">{t('gm.join_code')}</div>
             <div class="coderow">
               <code class="code">{settings.joinCode ?? '—'}</code>
-              <button class="ghost small" onclick={regen} disabled={busy}>Neu erzeugen</button>
+              <button class="ghost small" onclick={regen} disabled={busy}>{t('gm.regen')}</button>
             </div>
             <label class="chk">
-              <span class="chktxt">Beitritt per Code erlaubt</span>
+              <span class="chktxt">{t('gm.join_enabled')}</span>
               <span class="sw"><input type="checkbox" checked={settings.joinEnabled} onchange={toggleEnabled} disabled={busy} /><span class="slider"></span></span>
             </label>
             <div class="arow">
-              <span>Standard-Zugriff neuer Mitglieder:</span>
+              <span>{t('gm.default_access')}</span>
               <select value={settings.joinDefaultAccess} onchange={(e) => setDefaultAccess((e.currentTarget as HTMLSelectElement).value)} disabled={busy}>
-                <option value="write">Schreiben</option>
-                <option value="read">Nur lesen</option>
+                <option value="write">{t('gm.write')}</option>
+                <option value="read">{t('gm.read')}</option>
               </select>
             </div>
           </div>
@@ -101,24 +102,24 @@
 
         <!-- Members -->
         <div class="sec">
-          <div class="slabel">Mitglieder ({members.length})</div>
+          <div class="slabel">{t('gm.members', members.length)}</div>
           {#each members as m (m.userId)}
             <div class="mrow">
               <div class="minfo">
-                <div class="mname">{m.name || 'Ohne Namen'}{#if m.userId === myUserId} <span class="you">(du)</span>{/if}</div>
+                <div class="mname">{m.name || t('gm.no_name')}{#if m.userId === myUserId} <span class="you">{t('gm.you')}</span>{/if}</div>
                 {#if m.email}<div class="memail">{m.email}</div>{/if}
               </div>
               {#if isManager && m.role !== 'owner' && m.userId !== myUserId}
                 <div class="mctl">
                   <select value={m.role} onchange={(e) => changeRole(m, (e.currentTarget as HTMLSelectElement).value)} disabled={busy}>
-                    <option value="member">Mitglied</option>
-                    <option value="moderator">Moderator:in</option>
+                    <option value="member">{t('gm.member')}</option>
+                    <option value="moderator">{t('gm.moderator')}</option>
                   </select>
                   <select value={m.access} onchange={(e) => changeAccess(m, (e.currentTarget as HTMLSelectElement).value)} disabled={busy}>
-                    <option value="write">Schreiben</option>
-                    <option value="read">Nur lesen</option>
+                    <option value="write">{t('gm.write')}</option>
+                    <option value="read">{t('gm.read')}</option>
                   </select>
-                  <button class="ghost small" onclick={() => kick(m)} disabled={busy}>Entfernen</button>
+                  <button class="ghost small" onclick={() => kick(m)} disabled={busy}>{t('gm.remove')}</button>
                 </div>
               {:else}
                 <span class="rtag">{roleLabel(m.role)}</span>
@@ -130,25 +131,25 @@
         <!-- Retention (owner) -->
         {#if isOwner}
           <div class="sec">
-            <div class="slabel">Ergebnisse automatisch löschen</div>
-            <p class="hint">Tage, nach denen abgeschlossene Ergebnisse gelöscht werden (leer = aus).</p>
+            <div class="slabel">{t('gm.retention_title')}</div>
+            <p class="hint">{t('gm.retention_hint')}</p>
             <div class="arow">
-              <input class="num" inputmode="numeric" bind:value={retDays} placeholder="aus" />
-              <button class="ghost small" onclick={saveRetention} disabled={busy}>Speichern</button>
+              <input class="num" inputmode="numeric" bind:value={retDays} placeholder={t('gm.off')} />
+              <button class="ghost small" onclick={saveRetention} disabled={busy}>{t('common.save')}</button>
             </div>
           </div>
 
           <!-- Danger zone -->
           <div class="sec danger">
-            <div class="slabel">Gefahrenzone</div>
+            <div class="slabel">{t('gm.danger_zone')}</div>
             {#if !askDelete}
-              <button class="danger small" onclick={() => { askDelete = true; delConfirm = '' }}>Gruppe löschen</button>
+              <button class="danger small" onclick={() => { askDelete = true; delConfirm = '' }}>{t('gm.delete_group')}</button>
             {:else}
-              <p class="hint">Das löscht die Gruppe samt aller Daten für alle Mitglieder – unwiderruflich. Tippe zum Bestätigen den Namen <strong>{groupName}</strong> ein.</p>
+              <p class="hint">{t('gm.delete_warn_pre')}<strong>{groupName}</strong>{t('gm.delete_warn_post')}</p>
               <input class="num wide" bind:value={delConfirm} placeholder={groupName} />
               <div class="arow">
-                <button class="danger small" onclick={doDelete} disabled={busy || delConfirm.trim() !== groupName.trim()}>Endgültig löschen</button>
-                <button class="ghost small" onclick={() => (askDelete = false)}>Abbrechen</button>
+                <button class="danger small" onclick={doDelete} disabled={busy || delConfirm.trim() !== groupName.trim()}>{t('gm.delete_final')}</button>
+                <button class="ghost small" onclick={() => (askDelete = false)}>{t('common.cancel')}</button>
               </div>
             {/if}
           </div>

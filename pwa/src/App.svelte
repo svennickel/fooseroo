@@ -88,7 +88,7 @@
   // Context (Dein Konto / a group), category + day filters — like the app.
   let groups = $state<Group[]>([])
   let ctx = $state<Ctx>(null)
-  const ctxLabel = $derived(ctx == null ? 'Dein Konto' : (groups.find((g) => g.id === ctx)?.name ?? 'Gruppe'))
+  const ctxLabel = $derived(ctx == null ? t('ctx.personal') : (groups.find((g) => g.id === ctx)?.name ?? t('ctx.group_fallback')))
   // Result-retention of the active group (null = off / personal context).
   let retention = $state<Retention | null>(null)
   // Join-a-group-by-code flow.
@@ -142,7 +142,7 @@
   // Matches / Training tabs (like the app's areas), persisted with the selectors.
   let tab = $state<'matches' | 'training'>('matches')
   const today = () => new Date().toISOString().slice(0, 10)
-  const dayLabel = (d: string) => (d === today() ? 'Heute' : fmtDate(Date.parse(d)))
+  const dayLabel = (d: string) => (d === today() ? t('eval.today') : fmtDate(Date.parse(d)))
 
   // Newest day that has a match in ANY category, for the date pre-selection.
   function newestMatchDay(items: MatchItem[]): string {
@@ -391,10 +391,10 @@
     new Date(at).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
   const joinErrorText = (e: string) =>
-    e === 'invalid' ? 'Code ungültig, deaktiviert oder abgelaufen.'
-    : e === 'throttled' ? 'Zu viele Versuche – bitte später erneut.'
-    : e === 'full' ? 'Diese Gruppe ist voll.'
-    : 'Beitritt fehlgeschlagen – bitte erneut versuchen.'
+    e === 'invalid' ? t('join.err_invalid')
+    : e === 'throttled' ? t('join.err_throttled')
+    : e === 'full' ? t('join.err_full')
+    : t('join.err_generic')
 
   onMount(() => {
     applyTheme(getTheme())
@@ -651,13 +651,13 @@
                 <button role="menuitem" class:sel={ctx === g.id} onclick={() => { showCtxMenu = false; changeCtx(g.id) }}>{ctx === g.id ? '✓ ' : ''}{g.name}</button>
               {/each}
               <div class="menu-sep"></div>
-              <button role="menuitem" onclick={() => { showCtxMenu = false; showAccount = true }}>Konto &amp; Sync</button>
+              <button role="menuitem" onclick={() => { showCtxMenu = false; showAccount = true }}>{t('menu.account_sync')}</button>
             </div>
           {/if}
         </div>
       {/if}
       <div class="menuwrap">
-        <button class="iconbtn" aria-label="Menü" aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
+        <button class="iconbtn" aria-label={t('a11y.menu')} aria-haspopup="menu" onclick={() => (showMenu = !showMenu)}>
           {#if isIOS}
             <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>
           {:else}
@@ -665,10 +665,10 @@
           {/if}
         </button>
         {#if showMenu}
-          <button class="menu-catch" class:dim={isIOS} aria-label="Menü schließen" onclick={() => (showMenu = false)}></button>
+          <button class="menu-catch" class:dim={isIOS} aria-label={t('a11y.menu_close')} onclick={() => (showMenu = false)}></button>
           <div class="menu" class:sheet={isIOS} role="menu">
-            <button role="menuitem" onclick={() => { showMenu = false; showAccount = true }}>Konto &amp; Sync</button>
-            <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>Einstellungen</button>
+            <button role="menuitem" onclick={() => { showMenu = false; showAccount = true }}>{t('menu.account_sync')}</button>
+            <button role="menuitem" onclick={() => { showMenu = false; showSettings = true }}>{t('menu.settings')}</button>
           </div>
         {/if}
       </div>
@@ -680,26 +680,26 @@
   {#if showInstall}
     <div class="install">
       {#if canInstall}
-        <span>Fooseroo Web als App installieren?</span>
+        <span>{t('install.prompt')}</span>
         <span class="rowbtns">
-          <button class="ghost small" onclick={doInstall}>Installieren</button>
-          <button class="ghost small" onclick={dismissInstall}>Später</button>
+          <button class="ghost small" onclick={doInstall}>{t('install.install')}</button>
+          <button class="ghost small" onclick={dismissInstall}>{t('install.later')}</button>
         </span>
       {:else if installIOS}
-        <span>Installieren: unten auf <strong>Teilen</strong> tippen, dann <strong>„Zum Home-Bildschirm"</strong>.</span>
-        <button class="ghost small" onclick={dismissInstall}>OK</button>
+        <span>{t('install.ios_pre')}<strong>{t('install.ios_share')}</strong>{t('install.ios_mid')}<strong>{t('install.ios_a2hs')}</strong>{t('install.ios_end')}</span>
+        <button class="ghost small" onclick={dismissInstall}>{t('install.ok')}</button>
       {/if}
     </div>
   {/if}
 
   {#if selected && view}
     <div class="detail-top">
-      <button class="ghost small back" onclick={closeMatch}>{isIOS ? '‹' : '←'} Zurück</button>
+      <button class="ghost small back" onclick={closeMatch}>{isIOS ? '‹' : '←'} {t('common.back_word')}</button>
       <div class="dt-right">
-        {#if ctx}<button class="ghost small share" onclick={shareMatch} aria-label="Teilen">
-          {#if isIOS}<svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg>{:else}Teilen{/if}
+        {#if ctx}<button class="ghost small share" onclick={shareMatch} aria-label={t('eval.share')}>
+          {#if isIOS}<svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg>{:else}{t('eval.share')}{/if}
         </button>{/if}
-        <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>Bearbeiten</button>
+        <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>{t('match.edit')}</button>
       </div>
     </div>
     {#if shareNote}<div class="share-note">{shareNote}</div>{/if}
@@ -718,7 +718,7 @@
 
       {#if selected.running && speechOk}
         <button class="readbtn" class:on={readAloud} aria-pressed={readAloud} onclick={toggleRead}>
-          {readAloud ? '🔊  Vorlesen: an' : '🔈  Vorlesen: aus'}
+          {readAloud ? t('match.read_on') : t('match.read_off')}
         </button>
       {/if}
 
@@ -728,30 +728,30 @@
     </div>
 
   {:else if !ready}
-    <p class="hint">Lädt…</p>
+    <p class="hint">{t('common.loading')}</p>
 
   {:else if route.type === 'match'}
     <!-- Shared match deep link -->
     {#if needsAuthForShare}
-      <p>Ein geteiltes Match wurde mit dir geteilt. Melde dich an, um es anzusehen.</p>
+      <p>{t('shared.match_intro')}</p>
       {@render authForm()}
     {:else if sharedState === 'loading'}
-      <p class="hint">Geteiltes Match wird geladen…</p>
+      <p class="hint">{t('shared.match_loading')}</p>
     {:else if shared}
       <div class="card">
-        <div class="meta">{shared.groupName} · geteiltes Match</div>
+        <div class="meta">{t('shared.match_label', shared.groupName)}</div>
         <div class="score">
           <span class="team home">{shared.homeName}{#if shared.setsHome > shared.setsAway} ⭐{/if}</span>
           <span class="sets">{shared.setsHome} : {shared.setsAway}</span>
           <span class="team">{#if shared.setsAway > shared.setsHome}⭐ {/if}{shared.awayName}</span>
         </div>
       </div>
-      <a class="ghost-link" href="#/">Zur Übersicht</a>
+      <a class="ghost-link" href="#/">{t('common.overview')}</a>
     {:else if sharedState === 'notfound'}
-      <p>Dieses geteilte Match wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe oder es wurde gelöscht.</p>
-      <a class="ghost-link" href="#/">Zur Übersicht</a>
+      <p>{t('shared.match_notfound')}</p>
+      <a class="ghost-link" href="#/">{t('common.overview')}</a>
     {:else}
-      <p class="err">Das Match konnte nicht geladen werden. Bitte später erneut versuchen.</p>
+      <p class="err">{t('shared.match_error')}</p>
     {/if}
 
   {:else if route.type === 'training'}
@@ -779,43 +779,43 @@
     {/if}
 
   {:else if route.type === 'join'}
-    <h2 class="jointitle">Gruppe beitreten</h2>
+    <h2 class="jointitle">{t('join.title')}</h2>
     {#if invitePreview}
       <div class="card invite">
-        <p>Du wurdest in die Trainingsgruppe <strong>{invitePreview.name}</strong> eingeladen.</p>
+        <p>{t('join.invited_pre')}<strong>{invitePreview.name}</strong>{t('join.invited_post')}</p>
         {#if invitePreview.retentionDays}
-          <p class="retention">🛡️ Ergebnisse in dieser Trainingsgruppe werden nach {invitePreview.retentionDays} Tagen automatisch gelöscht.</p>
+          <p class="retention">{t('join.retention', invitePreview.retentionDays)}</p>
         {/if}
       </div>
     {/if}
     {#if !signedIn}
-      <p class="hint">Melde dich an, um {invitePreview ? `der Gruppe „${invitePreview.name}" beizutreten` : 'einer Trainingsgruppe beizutreten'}.</p>
+      <p class="hint">{invitePreview ? t('join.signin_named', invitePreview.name) : t('join.signin_generic')}</p>
       {@render authForm()}
-      <button class="ghost small" onclick={goHome}>Abbrechen</button>
+      <button class="ghost small" onclick={goHome}>{t('common.cancel')}</button>
     {:else}
       {#if !invitePreview}
-        <p class="hint">Gib den Beitritts-Code ein, den du erhalten hast.</p>
+        <p class="hint">{t('join.enter_code')}</p>
       {/if}
-      <input bind:value={joinCode} placeholder="Code (z. B. K7QF-3MZP)" autocomplete="off"
+      <input bind:value={joinCode} placeholder={t('join.code_ph')} autocomplete="off"
              autocapitalize="characters"
              onkeydown={(e) => { if (e.key === 'Enter' && !joinBusy && joinCode.trim()) attemptJoin(joinCode) }} />
       <button onclick={() => attemptJoin(joinCode)} disabled={joinBusy || !joinCode.trim()}>
-        {joinBusy ? 'Trete bei…' : invitePreview ? `„${invitePreview.name}" beitreten` : 'Beitreten'}
+        {joinBusy ? t('join.joining') : invitePreview ? t('join.join_named', invitePreview.name) : t('join.join')}
       </button>
       {#if joinError && joinError !== 'auth'}<p class="err">{joinErrorText(joinError)}</p>{/if}
-      <button class="ghost small" onclick={goHome}>Abbrechen</button>
+      <button class="ghost small" onclick={goHome}>{t('common.cancel')}</button>
     {/if}
 
   {:else if signedIn}
     {#if entitled === null}
-      <p class="hint">Lädt…</p>
+      <p class="hint">{t('common.loading')}</p>
     {:else if !entitled}
       <div class="card gateinfo">
-        <p><strong>Backup &amp; Sync und Trainingsgruppen sind in Vorbereitung.</strong> Wir testen diese Funktionen gerade mit einem eingeladenen Nutzerkreis und geben sie anschließend für alle frei.</p>
-        <p class="hint">Du hast bereits Zugang, wenn du <strong>Mitglied einer Trainingsgruppe</strong> bist oder über die <strong>Android-App „Backup &amp; Sync"</strong> nutzt. Tritt einer Gruppe per Code bei oder richte „Backup &amp; Sync" in der Android-App ein — danach erscheinen deine Inhalte hier automatisch.</p>
+        <p><strong>{t('gate.title')}</strong> {t('gate.body1')}</p>
+        <p class="hint">{t('gate.body2')}</p>
         <div class="gatebtns">
-          <button onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>Gruppe beitreten</button>
-          <a class="ghost-link" href="https://play.google.com/store/apps/details?id=de.snickel.fooser" target="_blank" rel="noopener">Android-App</a>
+          <button onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>{t('join.title')}</button>
+          <a class="ghost-link" href="https://play.google.com/store/apps/details?id=de.snickel.fooser" target="_blank" rel="noopener">{t('gate.android')}</a>
         </div>
       </div>
     {:else}
@@ -827,7 +827,7 @@
           <span class="caret">▾</span>
         </button>
         {#if showDatePicker}
-          <button class="menu-catch" aria-label="Schließen" onclick={() => (showDatePicker = false)}></button>
+          <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showDatePicker = false)}></button>
           <div class="menu picker" role="menu">
             {#each days as d}
               <button role="menuitem" class:sel={d === dayFilter} onclick={() => { showDatePicker = false; dayFilter = d }}>
@@ -841,11 +841,11 @@
         <div class="fchipwrap">
           <button class="fchip" aria-haspopup="menu" onclick={() => (showCatPicker = !showCatPicker)}>
             <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M21.41 11.58l-9-9A2 2 0 0 0 11 2H4a2 2 0 0 0-2 2v7a2 2 0 0 0 .59 1.42l9 9a2 2 0 0 0 2.82 0l7-7a2 2 0 0 0 0-2.84zM6.5 8A1.5 1.5 0 1 1 8 6.5 1.5 1.5 0 0 1 6.5 8z"/></svg>
-            <span class="fct">{catFilter || 'Kategorie'}</span>
+            <span class="fct">{catFilter || t('filter.category')}</span>
             <span class="caret">▾</span>
           </button>
           {#if showCatPicker}
-            <button class="menu-catch" aria-label="Schließen" onclick={() => (showCatPicker = false)}></button>
+            <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showCatPicker = false)}></button>
             <div class="menu picker" role="menu">
               {#each categories as c}
                 <button role="menuitem" class:sel={c === catFilter} onclick={() => { showCatPicker = false; catFilter = c }}>
@@ -853,7 +853,7 @@
                 </button>
               {/each}
               <div class="menu-sep"></div>
-              <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>✎ Kategorien verwalten</button>
+              <button role="menuitem" onclick={() => { showCatPicker = false; showCatEditor = true }}>{t('filter.manage_cats')}</button>
             </div>
           {/if}
         </div>
@@ -862,13 +862,13 @@
         <div class="fchipwrap">
           <button class="fchip" aria-haspopup="menu" onclick={() => (showPersonPicker = !showPersonPicker)}>
             <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 12a5 5 0 1 0-5-5 5 5 0 0 0 5 5zm0 2c-3.3 0-10 1.7-10 5v3h20v-3c0-3.3-6.7-5-10-5z"/></svg>
-            <span class="fct">{personFilter || 'Alle Personen'}</span>
+            <span class="fct">{personFilter || t('filter.all_persons')}</span>
             <span class="caret">▾</span>
           </button>
           {#if showPersonPicker}
-            <button class="menu-catch" aria-label="Schließen" onclick={() => (showPersonPicker = false)}></button>
+            <button class="menu-catch" aria-label={t('common.close')} onclick={() => (showPersonPicker = false)}></button>
             <div class="menu picker" role="menu">
-              <button role="menuitem" class:sel={personFilter === ''} onclick={() => { showPersonPicker = false; personFilter = '' }}>{personFilter === '' ? '✓ ' : ''}Alle Personen</button>
+              <button role="menuitem" class:sel={personFilter === ''} onclick={() => { showPersonPicker = false; personFilter = '' }}>{personFilter === '' ? '✓ ' : ''}{t('filter.all_persons')}</button>
               {#each trainingNames as n}
                 <button role="menuitem" class:sel={n === personFilter} onclick={() => { showPersonPicker = false; personFilter = n }}>{n === personFilter ? '✓ ' : ''}{n}</button>
               {/each}
@@ -879,17 +879,17 @@
     </div>
 
     {#if retention}
-      <p class="retention">🛡️ Ergebnisse in dieser Trainingsgruppe werden nach {retention.days} Tagen automatisch gelöscht.</p>
+      <p class="retention">{t('join.retention', retention.days)}</p>
     {/if}
 
     {#if tab === 'matches'}
-      <button class="newmatch" onclick={() => (matchEditor = { mode: 'new', initial: null })}>＋ Neues Match</button>
+      <button class="newmatch" onclick={() => (matchEditor = { mode: 'new', initial: null })}>{t('match.new')}</button>
       {#if matchesState === 'loading'}
-        <p class="hint">Lädt…</p>
+        <p class="hint">{t('common.loading')}</p>
       {:else if matchesState === 'error'}
-        <p class="err">Matches konnten nicht geladen werden.</p>
+        <p class="err">{t('match.load_error')}</p>
       {:else if shownMatches.length === 0}
-        <p class="hint">Keine Matches{#if catFilter || dayFilter} mit dieser Auswahl{/if} – erfasse welche in der App.</p>
+        <p class="hint">{t('match.empty_pre')}{#if catFilter || dayFilter}{t('match.empty_sel')}{/if}{t('match.empty_post')}</p>
       {:else}
         <ul class="list">
           {#each shownMatches as m (m.at)}
@@ -964,7 +964,7 @@
     {/if}
 
   {:else}
-    <p>Melde dich an, um deine Matches &amp; Trainings (und geteilte Inhalte) hier zu sehen.</p>
+    <p>{t('auth.signin_to_see')}</p>
     {@render authForm()}
   {/if}
   </div>
@@ -1011,13 +1011,13 @@
      ic_matches_24 (plain foosball ring) and ic_mode_24 (history). -->
 {#if signedIn && route.type === 'home' && !selected}
   <nav class="bottomnav">
-    <button class="navitem" class:active={tab === 'matches'} onclick={() => (tab = 'matches')} aria-label="Matches">
+    <button class="navitem" class:active={tab === 'matches'} onclick={() => (tab = 'matches')} aria-label={t('nav.matches')}>
       <span class="naicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/></svg></span>
-      <span class="nalabel">Matches</span>
+      <span class="nalabel">{t('nav.matches')}</span>
     </button>
-    <button class="navitem" class:active={tab === 'training'} onclick={() => (tab = 'training')} aria-label="Training">
+    <button class="navitem" class:active={tab === 'training'} onclick={() => (tab = 'training')} aria-label={t('nav.training')}>
       <span class="naicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.26,3C8.17,2.86 4,6.95 4,12L2.21,12c-0.45,0 -0.67,0.54 -0.35,0.85l2.79,2.8c0.2,0.2 0.51,0.2 0.71,0l2.79,-2.8c0.31,-0.31 0.09,-0.85 -0.36,-0.85L6,12c0,-3.9 3.18,-7.05 7.1,-7 3.72,0.05 6.85,3.18 6.9,6.9 0.05,3.91 -3.1,7.1 -7,7.1 -1.61,0 -3.1,-0.55 -4.28,-1.48 -0.4,-0.31 -0.96,-0.28 -1.32,0.08 -0.42,0.42 -0.39,1.13 0.08,1.49C9,20.29 10.91,21 13,21c5.05,0 9.14,-4.17 9,-9.26 -0.13,-4.69 -4.05,-8.61 -8.74,-8.74zM12.75,8c-0.41,0 -0.75,0.34 -0.75,0.75v3.68c0,0.35 0.19,0.68 0.49,0.86l3.12,1.85c0.36,0.21 0.82,0.09 1.03,-0.26 0.21,-0.36 0.09,-0.82 -0.26,-1.03l-2.88,-1.71v-3.4c0,-0.4 -0.34,-0.74 -0.75,-0.74z"/></svg></span>
-      <span class="nalabel">Training</span>
+      <span class="nalabel">{t('nav.training')}</span>
     </button>
   </nav>
 {/if}
@@ -1025,16 +1025,16 @@
 {#snippet authForm()}
   {#if step === 'email'}
     <input type="email" inputmode="email" autocomplete="email"
-           bind:value={email} placeholder="E-Mail-Adresse"
+           bind:value={email} placeholder={t('auth.email_ph')}
            onkeydown={(e) => { if (e.key === 'Enter' && !busy && email.includes('@')) send() }} />
-    <button onclick={send} disabled={busy || !email.includes('@')}>Code per E-Mail senden</button>
+    <button onclick={send} disabled={busy || !email.includes('@')}>{t('auth.send_code')}</button>
   {:else}
-    <p class="hint">Code aus der E-Mail an <strong>{email}</strong>:</p>
-    <p class="hint subtle">Gib den 6-stelligen Code direkt hier ein. Tippe <strong>nicht</strong> auf den Link in der E-Mail – er öffnet den Browser, nicht diese App.</p>
-    <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder="Code"
+    <p class="hint">{t('auth.code_from_pre')}<strong>{email}</strong>{t('auth.code_from_post')}</p>
+    <p class="hint subtle">{t('auth.code_hint')}</p>
+    <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder={t('auth.code_ph')}
            onkeydown={(e) => { if (e.key === 'Enter' && !busy && code.trim()) verify() }} />
-    <button onclick={verify} disabled={busy || !code.trim()}>Anmelden</button>
-    <button class="ghost" onclick={() => { step = 'email'; code = '' }}>Andere E-Mail</button>
+    <button onclick={verify} disabled={busy || !code.trim()}>{t('auth.signin')}</button>
+    <button class="ghost" onclick={() => { step = 'email'; code = '' }}>{t('auth.other_email')}</button>
   {/if}
   {#if error}<p class="err">{error}</p>{/if}
 {/snippet}

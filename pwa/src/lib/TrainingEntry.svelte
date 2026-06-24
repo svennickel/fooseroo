@@ -10,7 +10,7 @@
     dayKey, type Ctx, type TrainingItem, type TimeWindow } from './data'
   import { signedElapsed, countdownColor, timeBoundLabel, OVERTIME_MS } from './trainingmath'
   import { rodLimits, buttonModeOf, counterHiddenOf, countdownDescending } from './trainingprefs'
-  import { t } from './i18n.svelte'
+  import { t, getLang } from './i18n.svelte'
   import ChoicePicker from './ChoicePicker.svelte'
   import TrainingCategoryEditor from './TrainingCategoryEditor.svelte'
 
@@ -38,7 +38,7 @@
   const today = dayKey(Date.now())
   const nameCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.name) m[t.name] = (m[t.name] ?? 0) + 1; return m })
   const modeCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.mode) m[t.mode] = (m[t.mode] ?? 0) + 1; return m })
-  const modeSuffixes = $derived.by(() => { const m: Record<string, string> = {}; for (const k of modes) { const s = timeBoundLabel(windows[k]?.fromSeconds, windows[k]?.toSeconds); if (s) m[k] = s.replace(/^ – /, '') } return m })
+  const modeSuffixes = $derived.by(() => { const m: Record<string, string> = {}; for (const k of modes) { const s = timeBoundLabel(windows[k]?.fromSeconds, windows[k]?.toSeconds, getLang()); if (s) m[k] = s.replace(/^ – /, '') } return m })
 
   async function addName(n: string) {
     if (!poolState.includes(n)) poolState = [...poolState, n]
@@ -153,8 +153,8 @@
         {#if mode}<button class="edit" aria-label={t('training.category')} onclick={() => (editing = mode)}>✎</button>{/if}
       </div>
     </div>
-    {#if mode && timeBoundLabel(win?.fromSeconds, win?.toSeconds)}
-      <p class="winlbl">{t('training.window_label')}{timeBoundLabel(win?.fromSeconds, win?.toSeconds)}</p>
+    {#if mode && timeBoundLabel(win?.fromSeconds, win?.toSeconds, getLang())}
+      <p class="winlbl">{t('training.window_label')}{timeBoundLabel(win?.fromSeconds, win?.toSeconds, getLang())}</p>
     {/if}
 
     {#if kind === 'outcome'}

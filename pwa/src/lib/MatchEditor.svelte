@@ -15,6 +15,7 @@
   import { addPlayersToPool, type MatchItem } from './data'
   import MatchProgress from './MatchProgress.svelte'
   import ChoicePicker from './ChoicePicker.svelte'
+  import { t } from './i18n.svelte'
   import { onMount } from 'svelte'
 
   let { mode, ctx, myUserId, initial, pool, categorySuggestions, defaultCategory, peerMatches, onClose, onSaved }:
@@ -69,7 +70,7 @@
     if (saveTimer) clearTimeout(saveTimer)
     // Surface a persistent live-save failure instead of swallowing it — otherwise a
     // match that never reaches the cloud (RLS/offline) just silently disappears.
-    saveTimer = setTimeout(() => { saveRow(running).then(() => { err = '' }).catch(() => { err = 'Nicht gespeichert – Verbindung?' }) }, 1200)
+    saveTimer = setTimeout(() => { saveRow(running).then(() => { err = '' }).catch(() => { err = t('me.not_saved') }) }, 1200)
   }
   async function saveRow(run: boolean) {
     await saveMatchRow({ groupId: ctx, ts, teamA: labelA, teamB: labelB,
@@ -146,18 +147,18 @@
   function cleanup() { if (saveTimer) clearTimeout(saveTimer); stopCountdown(); editor?.leave(); editor = null }
   async function finish() {
     if (saveTimer) clearTimeout(saveTimer)
-    try { running = false; await saveRow(false) } catch { err = 'Speichern fehlgeschlagen.'; return }
+    try { running = false; await saveRow(false) } catch { err = t('training.save_failed'); return }
     editor?.end(JSON.stringify(score), false); cleanup(); onSaved(); onClose()
   }
   async function park() {
     if (saveTimer) clearTimeout(saveTimer)
     if (!hasContent) { cleanup(); onClose(); return }   // nothing to keep
-    try { await saveRow(true) } catch { err = 'Speichern fehlgeschlagen.'; return }
+    try { await saveRow(true) } catch { err = t('training.save_failed'); return }
     cleanup(); onSaved(); onClose()   // row stays running; editor stops broadcasting
   }
   async function discard() {
     if (saveTimer) clearTimeout(saveTimer)
-    try { await discardMatchRow(ctx, ts) } catch { err = 'Verwerfen fehlgeschlagen.'; return }
+    try { await discardMatchRow(ctx, ts) } catch { err = t('me.discard_failed'); return }
     editor?.end(null, true); cleanup(); onSaved(); onClose()
   }
   // "Spielende" → confirm; with goals it is archived (finish), without it is
@@ -169,11 +170,11 @@
   function statsLine(team: 'A' | 'B'): string {
     const to = team === 'A' ? score.timeoutsA : score.timeoutsB
     const rs = team === 'A' ? score.resetStateA : score.resetStateB
-    const toStr = to === 1 ? '1 Timeout\n' : to === 2 ? '2 Timeouts\n' : ''
-    const rsStr = rs === 'RESET' ? 'Reset\n' : rs === 'RESET_WARNING' ? 'Reset Warning\n'
-      : rs === 'RESET_VIOLATION' ? 'Reset Violation\n' : ''
+    const toStr = to === 1 ? `${t('me.timeouts_1')}\n` : to === 2 ? `${t('me.timeouts_2')}\n` : ''
+    const rsStr = rs === 'RESET' ? `${t('me.reset')}\n` : rs === 'RESET_WARNING' ? `${t('me.reset_warning')}\n`
+      : rs === 'RESET_VIOLATION' ? `${t('me.reset_violation')}\n` : ''
     const serving = score.serve === (team === 'A' ? 'TEAM_A' : 'TEAM_B')
-    return toStr + rsStr + (serving ? 'Auflage' : '')
+    return toStr + rsStr + (serving ? t('me.serve') : '')
   }
 
   async function shareMatch() {
@@ -190,21 +191,21 @@
       <!-- Toolbar like the app's match counter: back (parks), Spielverlauf, Rückgängig,
            Seiten tauschen, and the three-dot overflow (Teilen, Löschen…). -->
       <div class="toolbar">
-        <button class="tbtn" onclick={park} aria-label="Zurück">{isIOS ? '‹' : '←'}</button>
+        <button class="tbtn" onclick={park} aria-label={t('common.back_word')}>{isIOS ? '‹' : '←'}</button>
         <div class="tactions">
-          <button class="tbtn" onclick={() => progressEl?.scrollIntoView({ behavior: 'smooth' })} title="Spielverlauf" aria-label="Spielverlauf">
+          <button class="tbtn" onclick={() => progressEl?.scrollIntoView({ behavior: 'smooth' })} title={t('me.history')} aria-label={t('me.history')}>
             <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M13.26,3C8.17,2.86 4,6.95 4,12L2.21,12c-0.45,0 -0.67,0.54 -0.35,0.85l2.79,2.8c0.2,0.2 0.51,0.2 0.71,0l2.79,-2.8c0.31,-0.31 0.09,-0.85 -0.36,-0.85L6,12c0,-3.9 3.18,-7.05 7.1,-7 3.72,0.05 6.85,3.18 6.9,6.9 0.05,3.91 -3.1,7.1 -7,7.1 -1.61,0 -3.1,-0.55 -4.28,-1.48 -0.4,-0.31 -0.96,-0.28 -1.32,0.08 -0.42,0.42 -0.39,1.13 0.08,1.49C9,20.29 10.91,21 13,21c5.05,0 9.14,-4.17 9,-9.26 -0.13,-4.69 -4.05,-8.61 -8.74,-8.74zM12.75,8c-0.41,0 -0.75,0.34 -0.75,0.75v3.68c0,0.35 0.19,0.68 0.49,0.86l3.12,1.85c0.36,0.21 0.82,0.09 1.03,-0.26 0.21,-0.36 0.09,-0.82 -0.26,-1.03l-2.88,-1.71v-3.4c0,-0.4 -0.34,-0.74 -0.75,-0.74z"/></svg>
           </button>
-          <button class="tbtn" onclick={doUndo} disabled={score.matchActions.length === 0} title="Rückgängig" aria-label="Rückgängig">↶</button>
-          <button class="tbtn" onclick={doSwap} title="Seiten tauschen" aria-label="Seiten tauschen">⇄</button>
+          <button class="tbtn" onclick={doUndo} disabled={score.matchActions.length === 0} title={t('me.undo')} aria-label={t('me.undo')}>↶</button>
+          <button class="tbtn" onclick={doSwap} title={t('me.swap')} aria-label={t('me.swap')}>⇄</button>
           <div class="ovwrap">
-            <button class="tbtn" onclick={() => (menuOpen = !menuOpen)} aria-label="Mehr">{isIOS ? '•••' : '⋮'}</button>
+            <button class="tbtn" onclick={() => (menuOpen = !menuOpen)} aria-label={t('me.more')}>{isIOS ? '•••' : '⋮'}</button>
             {#if menuOpen && !isIOS}
               <!-- Android/desktop: top-right dropdown -->
               <button class="catch" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
               <div class="ovmenu" role="menu">
-                {#if ctx}<button role="menuitem" onclick={shareMatch}>Teilen</button>{/if}
-                <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>Löschen…</button>
+                {#if ctx}<button role="menuitem" onclick={shareMatch}>{t('eval.share')}</button>{/if}
+                <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>{t('me.delete_dots')}</button>
               </div>
             {/if}
           </div>
@@ -220,8 +221,8 @@
       <div class="cdrow">
         <button class="rod" onclick={() => startCountdown(ROD_SHORT)}>{ROD_SHORT}s</button>
         <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
-          {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}` : 'Bereit'}
-          {#if cdRunning}<div class="cdc">{Math.round(cdTotal / 1000)}s Countdown</div>{/if}
+          {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}` : t('me.ready')}
+          {#if cdRunning}<div class="cdc">{t('me.countdown', Math.round(cdTotal / 1000))}</div>{/if}
         </div>
         <button class="rod" onclick={() => startCountdown(ROD_LONG)}>{ROD_LONG}s</button>
       </div>
@@ -239,19 +240,19 @@
 
       <!-- Per-team small buttons: Auflage · Reset · Timeout | Timeout · Reset · Auflage -->
       <div class="btn6">
-        <button class="sb" class:on={score.serve === 'TEAM_A'} onclick={() => serve('TEAM_A')}>Auflage</button>
-        <button class="sb" onclick={() => reset('TEAM_A')}>Reset</button>
-        <button class="sb" onclick={() => timeout('TEAM_A')} disabled={score.timeoutsA >= 2}>Timeout</button>
-        <button class="sb" onclick={() => timeout('TEAM_B')} disabled={score.timeoutsB >= 2}>Timeout</button>
-        <button class="sb" onclick={() => reset('TEAM_B')}>Reset</button>
-        <button class="sb" class:on={score.serve === 'TEAM_B'} onclick={() => serve('TEAM_B')}>Auflage</button>
+        <button class="sb" class:on={score.serve === 'TEAM_A'} onclick={() => serve('TEAM_A')}>{t('me.serve')}</button>
+        <button class="sb" onclick={() => reset('TEAM_A')}>{t('me.reset')}</button>
+        <button class="sb" onclick={() => timeout('TEAM_A')} disabled={score.timeoutsA >= 2}>{t('me.timeout')}</button>
+        <button class="sb" onclick={() => timeout('TEAM_B')} disabled={score.timeoutsB >= 2}>{t('me.timeout')}</button>
+        <button class="sb" onclick={() => reset('TEAM_B')}>{t('me.reset')}</button>
+        <button class="sb" class:on={score.serve === 'TEAM_B'} onclick={() => serve('TEAM_B')}>{t('me.serve')}</button>
       </div>
 
       <!-- Tor | Satzende | Tor -->
       <div class="goalrow">
-        <button class="tor a" onclick={() => goal('TEAM_A')}>Tor</button>
-        <button class="finish" onclick={finishSet} disabled={!canFinishSet}>Satzende</button>
-        <button class="tor b" onclick={() => goal('TEAM_B')}>Tor</button>
+        <button class="tor a" onclick={() => goal('TEAM_A')}>{t('me.goal')}</button>
+        <button class="finish" onclick={finishSet} disabled={!canFinishSet}>{t('me.set_end')}</button>
+        <button class="tor b" onclick={() => goal('TEAM_B')}>{t('me.goal')}</button>
       </div>
 
       <div class="statsrow"><div class="stats">{statsLine('A')}</div><div class="stats">{statsLine('B')}</div></div>
@@ -265,30 +266,30 @@
       {#if err}<p class="err">{err}</p>{/if}
 
       {#if askDelete}
-        <div class="confirm"><p>Match löschen?</p>
-          <div class="crow"><button class="danger small" onclick={discard}>Löschen</button><button class="ghost small" onclick={() => (askDelete = false)}>Abbrechen</button></div></div>
+        <div class="confirm"><p>{t('me.delete_q')}</p>
+          <div class="crow"><button class="danger small" onclick={discard}>{t('common.delete')}</button><button class="ghost small" onclick={() => (askDelete = false)}>{t('common.cancel')}</button></div></div>
       {:else if askEnd}
-        <div class="confirm"><p><strong>Spiel beenden?</strong><br>{hasGoals ? 'Ergebnis und Spielverlauf werden gespeichert.' : 'Ohne Tore wird das Spiel verworfen.'}</p>
-          <div class="crow"><button class="primary" onclick={endConfirmed}>Spielende</button><button class="ghost small" onclick={() => (askEnd = false)}>Abbrechen</button></div></div>
+        <div class="confirm"><p><strong>{t('me.end_q')}</strong><br>{hasGoals ? t('me.end_save') : t('me.end_discard')}</p>
+          <div class="crow"><button class="primary" onclick={endConfirmed}>{t('me.match_end')}</button><button class="ghost small" onclick={() => (askEnd = false)}>{t('common.cancel')}</button></div></div>
       {:else}
-        <button class="primary end" onclick={() => (askEnd = true)}>Spielende</button>
+        <button class="primary end" onclick={() => (askEnd = true)}>{t('me.match_end')}</button>
       {/if}
 
       {#if menuOpen && isIOS}
         <!-- iOS: a bottom action sheet instead of a top-right dropdown -->
         <div class="sheetwrap" role="presentation">
-          <button class="sheetbg" aria-label="Schließen" onclick={() => (menuOpen = false)}></button>
+          <button class="sheetbg" aria-label={t('common.close')} onclick={() => (menuOpen = false)}></button>
           <div class="actionsheet" role="menu">
-            {#if ctx}<button role="menuitem" onclick={shareMatch}><svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg> Teilen</button>{/if}
-            <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>Löschen…</button>
-            <button role="menuitem" class="cancel" onclick={() => (menuOpen = false)}>Abbrechen</button>
+            {#if ctx}<button role="menuitem" onclick={shareMatch}><svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg> {t('eval.share')}</button>{/if}
+            <button role="menuitem" class="del" onclick={() => { menuOpen = false; askDelete = true }}>{t('me.delete_dots')}</button>
+            <button role="menuitem" class="cancel" onclick={() => (menuOpen = false)}>{t('common.cancel')}</button>
           </div>
         </div>
       {/if}
 
       {#if picking}
         <ChoicePicker
-          title={picking === 'cat' ? 'Kategorie' : (picking === 'a' ? 'Team links' : 'Team rechts')}
+          title={picking === 'cat' ? t('training.category') : (picking === 'a' ? t('me.team_left') : t('me.team_right'))}
           items={picking === 'cat' ? categorySuggestions : poolState}
           selected={picking === 'cat' ? [category] : (picking === 'a' ? parseTeam(teamA) : parseTeam(teamB))}
           maxSelection={picking === 'cat' ? 1 : 2}

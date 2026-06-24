@@ -13,12 +13,9 @@ function stored(): LangPref {
   try { const v = localStorage.getItem(KEY); return v === 'de' || v === 'en' ? v : 'system' } catch { return 'system' }
 }
 function systemLang(): Lang {
-  // English coverage is still being completed, so "System" resolves to German for
-  // now — German-locale testers must never see a half-translated UI. English is
-  // reachable via the explicit Settings switcher. Flip this to
-  // `detectLang(navigator.language)` once every component uses t().
-  void detectLang
-  return 'de'
+  // "System" follows the browser locale (English coverage is complete across all
+  // components); an explicit choice in Settings overrides it.
+  try { return detectLang(navigator.language) } catch { return 'de' }
 }
 function resolve(p: LangPref): Lang { return p === 'system' ? systemLang() : p }
 
@@ -141,6 +138,119 @@ const de: Record<string, string> = {
   'shared.training_open': 'In der Gruppe öffnen',
   'shared.training_notfound': 'Diese geteilte Auswertung wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe.',
   'shared.training_error': 'Die Auswertung konnte nicht geladen werden. Bitte später erneut versuchen.',
+
+  // shell / menu
+  'menu.account_sync': 'Konto & Sync', 'a11y.menu': 'Menü', 'a11y.menu_close': 'Menü schließen',
+  'ctx.personal': 'Dein Konto', 'ctx.group_fallback': 'Gruppe',
+  'common.back_word': 'Zurück',
+  'install.prompt': 'Fooseroo Web als App installieren?', 'install.install': 'Installieren',
+  'install.later': 'Später', 'install.ok': 'OK',
+  'install.ios_pre': 'Installieren: unten auf ', 'install.ios_share': 'Teilen',
+  'install.ios_mid': ' tippen, dann ', 'install.ios_a2hs': '„Zum Home-Bildschirm“', 'install.ios_end': '.',
+
+  // match detail + shared match
+  'match.edit': 'Bearbeiten', 'match.read_on': '🔊  Vorlesen: an', 'match.read_off': '🔈  Vorlesen: aus',
+  'shared.match_intro': 'Ein geteiltes Match wurde mit dir geteilt. Melde dich an, um es anzusehen.',
+  'shared.match_loading': 'Geteiltes Match wird geladen…', 'shared.match_label': '%s · geteiltes Match',
+  'shared.match_notfound': 'Dieses geteilte Match wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe oder es wurde gelöscht.',
+  'shared.match_error': 'Das Match konnte nicht geladen werden. Bitte später erneut versuchen.',
+
+  // join
+  'join.title': 'Gruppe beitreten',
+  'join.invited_pre': 'Du wurdest in die Trainingsgruppe ', 'join.invited_post': ' eingeladen.',
+  'join.retention': '🛡️ Ergebnisse in dieser Trainingsgruppe werden nach %s Tagen automatisch gelöscht.',
+  'join.signin_named': 'Melde dich an, um der Gruppe „%s“ beizutreten.',
+  'join.signin_generic': 'Melde dich an, um einer Trainingsgruppe beizutreten.',
+  'join.enter_code': 'Gib den Beitritts-Code ein, den du erhalten hast.',
+  'join.code_ph': 'Code (z. B. K7QF-3MZP)', 'join.joining': 'Trete bei…',
+  'join.join_named': '„%s“ beitreten', 'join.join': 'Beitreten',
+  'join.err_invalid': 'Code ungültig, deaktiviert oder abgelaufen.',
+  'join.err_throttled': 'Zu viele Versuche – bitte später erneut.',
+  'join.err_full': 'Diese Gruppe ist voll.',
+  'join.err_generic': 'Beitritt fehlgeschlagen – bitte erneut versuchen.',
+
+  // entitlement gate
+  'gate.title': 'Backup & Sync und Trainingsgruppen sind in Vorbereitung.',
+  'gate.body1': 'Wir testen diese Funktionen gerade mit einem eingeladenen Nutzerkreis und geben sie anschließend für alle frei.',
+  'gate.body2': 'Du hast bereits Zugang, wenn du Mitglied einer Trainingsgruppe bist oder die Android-App „Backup & Sync“ nutzt. Tritt einer Gruppe per Code bei oder richte „Backup & Sync“ in der Android-App ein — danach erscheinen deine Inhalte hier automatisch.',
+  'gate.android': 'Android-App',
+
+  // filters
+  'filter.category': 'Kategorie', 'filter.manage_cats': '✎ Kategorien verwalten', 'filter.all_persons': 'Alle Personen',
+
+  // matches list
+  'match.new': '＋ Neues Match', 'match.load_error': 'Matches konnten nicht geladen werden.',
+  'match.empty_pre': 'Keine Matches', 'match.empty_sel': ' mit dieser Auswahl', 'match.empty_post': ' – erfasse welche in der App.',
+
+  // auth
+  'auth.signin_to_see': 'Melde dich an, um deine Matches & Trainings (und geteilte Inhalte) hier zu sehen.',
+  'auth.email_ph': 'E-Mail-Adresse', 'auth.send_code': 'Code per E-Mail senden',
+  'auth.code_from_pre': 'Code aus der E-Mail an ', 'auth.code_from_post': ':',
+  'auth.code_hint': 'Gib den 6-stelligen Code direkt hier ein. Tippe nicht auf den Link in der E-Mail – er öffnet den Browser, nicht diese App.',
+  'auth.code_ph': 'Code', 'auth.signin': 'Anmelden', 'auth.other_email': 'Andere E-Mail',
+
+  // match editor / live counter
+  'me.ready': 'Bereit', 'me.countdown': '%ss Countdown',
+  'me.serve': 'Auflage', 'me.reset': 'Reset', 'me.timeout': 'Timeout', 'me.goal': 'Tor',
+  'me.set_end': 'Satzende', 'me.match_end': 'Spielende',
+  'me.delete_q': 'Match löschen?', 'me.end_q': 'Spiel beenden?',
+  'me.end_save': 'Ergebnis und Spielverlauf werden gespeichert.',
+  'me.end_discard': 'Ohne Tore wird das Spiel verworfen.',
+  'me.delete_dots': 'Löschen…', 'me.team_left': 'Team links', 'me.team_right': 'Team rechts',
+  'me.discard_failed': 'Verwerfen fehlgeschlagen.',
+  'me.history': 'Spielverlauf', 'me.undo': 'Rückgängig', 'me.swap': 'Seiten tauschen', 'me.more': 'Mehr',
+  'me.reset_warning': 'Reset Warning', 'me.reset_violation': 'Reset Violation',
+  'me.timeouts_1': '1 Timeout', 'me.timeouts_2': '2 Timeouts', 'me.not_saved': 'Nicht gespeichert – Verbindung?',
+
+  // category editor (match categories)
+  'ce.title': 'Kategorien verwalten', 'ce.new_ph': 'Neue Kategorie',
+  'ce.exists': 'Diese Kategorie gibt es schon.', 'ce.action_failed': 'Aktion fehlgeschlagen.',
+  'ce.default_hint': 'Standardkategorie für neue Matches.', 'ce.make_default': 'Als Standard',
+  'ce.rename': 'Umbenennen', 'ce.confirm_delete_cat': 'Kategorie „%s“ löschen?',
+  'ce.head': 'Kategorien', 'ce.delete_to': '„%s“ löschen → Matches nach:',
+  'a11y.up': 'hoch', 'a11y.down': 'runter',
+
+  // onboarding
+  'ob.terms_text': 'Ich habe die Nutzungs- und Datenschutzbedingungen gelesen und akzeptiere sie.',
+  'ob.welcome': 'Willkommen bei Fooseroo', 'ob.continue': 'Weiter', 'ob.start': 'Los geht’s!',
+  'ob.accept_btn': 'Akzeptieren & Loslegen',
+  'ob.intro': 'Drei Bereiche, ein Ziel: mehr aus deinem Tischfußball machen.',
+  'ob.liga_title': '🏆  Liga', 'ob.matches_title': '⚪  Matches', 'ob.training_title': '⏱️  Training',
+  'ob.liga_text': 'Verfolge deine Ligen live – Tabellen, Mannschaften, Spieler und jede Begegnung mit Live-Ticker. Setz ★ auf deine Favoriten und lass dich benachrichtigen oder vorlesen, sobald es losgeht.',
+  'ob.matches_text': 'Zähl deine eigenen Spiele mit: Punkte, Sätze und Statistik in Echtzeit – und teile das Ergebnis als schicke Grafik',
+  'ob.training_text': 'Werde messbar besser – Zeitmessung, Zeitgefühl und Erfolgsquote, mit Verlauf, Tageszusammenfassung und Auswertung je Person.',
+  'ob.stats_note': 'Ganz freiwillig – jederzeit in den Einstellungen änderbar.',
+  'ob.footnote': ' Diese Funktion ist der Fooseroo-App für Android vorbehalten und in der Webversion nicht enthalten.',
+
+  // account
+  'acc.title': 'Konto & Sync',
+  'acc.intro': 'Wähle, wo deine Matches und Trainings gespeichert werden.',
+  'acc.backup': 'Backup & Sync', 'acc.backup_desc': 'Sichern und auf deinen Geräten synchron halten.',
+  'acc.signed_in_as': 'Angemeldet als', 'acc.signout_q': 'Nur dieses Gerät abmelden, oder alle Geräte? Deine Daten bleiben erhalten.',
+  'acc.this_device': 'Dieses Gerät', 'acc.all_devices': 'Alle Geräte',
+  'acc.signin_create': 'Anmelden / Konto anlegen', 'acc.send_code': 'Code senden',
+  'acc.code_hint': 'Gib den Code ein, den wir dir per E-Mail geschickt haben.', 'acc.confirm': 'Bestätigen',
+  'acc.group': 'Trainingsgruppe', 'acc.group_desc': 'Gemeinsam in Echtzeit eintragen.',
+  'acc.owner': 'Inhaber:in', 'acc.manage': 'Verwalten', 'acc.display_name_ph': 'Mein Anzeigename',
+  'acc.my_name_is': 'Mein Anzeigename: %s', 'acc.set_name': 'Anzeigename festlegen',
+  'acc.owner_hint': 'Als Inhaber:in: Mitglieder verwalten, umbenennen oder löschen in der App.',
+  'acc.leave_q': '„%s“ wirklich verlassen? Du verlierst den Zugriff auf die Gruppendaten.',
+  'acc.leave': 'Verlassen', 'acc.leave_group': 'Gruppe verlassen',
+  'acc.full_admin_hint': 'Volle Verwaltung (Mitglieder, Rollen, Tarife): in der Fooseroo-App für Android.',
+  'acc.name_dup': 'Dieser Name wird in der Gruppe bereits verwendet.',
+  'acc.save_failed': 'Konnte nicht gespeichert werden.', 'acc.leave_failed': 'Verlassen fehlgeschlagen.',
+
+  // group management
+  'gm.load_failed': 'Konnte die Gruppe nicht laden.', 'gm.delete_failed': 'Löschen fehlgeschlagen.',
+  'gm.moderator': 'Moderator:in', 'gm.member': 'Mitglied',
+  'gm.join_code': 'Beitritts-Code', 'gm.regen': 'Neu erzeugen', 'gm.join_enabled': 'Beitritt per Code erlaubt',
+  'gm.default_access': 'Standard-Zugriff neuer Mitglieder:', 'gm.write': 'Schreiben', 'gm.read': 'Nur lesen',
+  'gm.members': 'Mitglieder (%s)', 'gm.no_name': 'Ohne Namen', 'gm.you': '(du)', 'gm.remove': 'Entfernen',
+  'gm.retention_title': 'Ergebnisse automatisch löschen',
+  'gm.retention_hint': 'Tage, nach denen abgeschlossene Ergebnisse gelöscht werden (leer = aus).',
+  'gm.off': 'aus', 'gm.danger_zone': 'Gefahrenzone', 'gm.delete_group': 'Gruppe löschen',
+  'gm.delete_warn_pre': 'Das löscht die Gruppe samt aller Daten für alle Mitglieder – unwiderruflich. Tippe zum Bestätigen den Namen ',
+  'gm.delete_warn_post': ' ein.', 'gm.delete_final': 'Endgültig löschen',
 }
 
 const en: Record<string, string> = {
@@ -215,6 +325,107 @@ const en: Record<string, string> = {
   'shared.training_open': 'Open in the group',
   'shared.training_notfound': 'This shared summary was not found. You may not be a member of the group.',
   'shared.training_error': 'The summary could not be loaded. Please try again later.',
+
+  'menu.account_sync': 'Account & Sync', 'a11y.menu': 'Menu', 'a11y.menu_close': 'Close menu',
+  'ctx.personal': 'Your account', 'ctx.group_fallback': 'Group',
+  'common.back_word': 'Back',
+  'install.prompt': 'Install Fooseroo Web as an app?', 'install.install': 'Install',
+  'install.later': 'Later', 'install.ok': 'OK',
+  'install.ios_pre': 'To install: tap ', 'install.ios_share': 'Share',
+  'install.ios_mid': ' below, then ', 'install.ios_a2hs': '“Add to Home Screen”', 'install.ios_end': '.',
+
+  'match.edit': 'Edit', 'match.read_on': '🔊  Read aloud: on', 'match.read_off': '🔈  Read aloud: off',
+  'shared.match_intro': 'A match was shared with you. Sign in to view it.',
+  'shared.match_loading': 'Loading the shared match…', 'shared.match_label': '%s · shared match',
+  'shared.match_notfound': 'This shared match was not found. You may not be a member of the group, or it was deleted.',
+  'shared.match_error': 'The match could not be loaded. Please try again later.',
+
+  'join.title': 'Join group',
+  'join.invited_pre': "You've been invited to the training group ", 'join.invited_post': '.',
+  'join.retention': '🛡️ Results in this training group are automatically deleted after %s days.',
+  'join.signin_named': 'Sign in to join the group “%s”.',
+  'join.signin_generic': 'Sign in to join a training group.',
+  'join.enter_code': 'Enter the join code you received.',
+  'join.code_ph': 'Code (e.g. K7QF-3MZP)', 'join.joining': 'Joining…',
+  'join.join_named': 'Join “%s”', 'join.join': 'Join',
+  'join.err_invalid': 'Code invalid, disabled or expired.',
+  'join.err_throttled': 'Too many attempts – please try again later.',
+  'join.err_full': 'This group is full.',
+  'join.err_generic': 'Joining failed – please try again.',
+
+  'gate.title': 'Backup & Sync and training groups are in preparation.',
+  'gate.body1': "We're currently testing these features with an invited group of users and will release them to everyone afterwards.",
+  'gate.body2': 'You already have access if you are a member of a training group or use the Android app’s “Backup & Sync”. Join a group with a code or set up “Backup & Sync” in the Android app — your content then appears here automatically.',
+  'gate.android': 'Android app',
+
+  'filter.category': 'Category', 'filter.manage_cats': '✎ Manage categories', 'filter.all_persons': 'All people',
+
+  'match.new': '＋ New match', 'match.load_error': 'Matches could not be loaded.',
+  'match.empty_pre': 'No matches', 'match.empty_sel': ' for this selection', 'match.empty_post': ' – record some in the app.',
+
+  'auth.signin_to_see': 'Sign in to see your matches & training (and shared content) here.',
+  'auth.email_ph': 'Email address', 'auth.send_code': 'Send code by email',
+  'auth.code_from_pre': 'Code from the email to ', 'auth.code_from_post': ':',
+  'auth.code_hint': 'Enter the 6-digit code directly here. Do not tap the link in the email – it opens the browser, not this app.',
+  'auth.code_ph': 'Code', 'auth.signin': 'Sign in', 'auth.other_email': 'Different email',
+
+  'me.ready': 'Ready', 'me.countdown': '%ss countdown',
+  'me.serve': 'Serve', 'me.reset': 'Reset', 'me.timeout': 'Timeout', 'me.goal': 'Goal',
+  'me.set_end': 'End set', 'me.match_end': 'Match end',
+  'me.delete_q': 'Delete match?', 'me.end_q': 'End match?',
+  'me.end_save': 'The result and match history will be saved.',
+  'me.end_discard': 'Without goals the match is discarded.',
+  'me.delete_dots': 'Delete…', 'me.team_left': 'Team left', 'me.team_right': 'Team right',
+  'me.discard_failed': 'Discard failed.',
+  'me.history': 'Match history', 'me.undo': 'Undo', 'me.swap': 'Swap sides', 'me.more': 'More',
+  'me.reset_warning': 'Reset Warning', 'me.reset_violation': 'Reset Violation',
+  'me.timeouts_1': '1 timeout', 'me.timeouts_2': '2 timeouts', 'me.not_saved': 'Not saved – connection?',
+
+  'ce.title': 'Manage categories', 'ce.new_ph': 'New category',
+  'ce.exists': 'This category already exists.', 'ce.action_failed': 'Action failed.',
+  'ce.default_hint': 'Default category for new matches.', 'ce.make_default': 'Set default',
+  'ce.rename': 'Rename', 'ce.confirm_delete_cat': 'Delete category “%s”?',
+  'ce.head': 'Categories', 'ce.delete_to': 'Delete “%s” → move matches to:',
+  'a11y.up': 'up', 'a11y.down': 'down',
+
+  'ob.terms_text': 'I have read and accept the terms of use and privacy policy.',
+  'ob.welcome': 'Welcome to Fooseroo', 'ob.continue': 'Continue', 'ob.start': "Let's go!",
+  'ob.accept_btn': 'Accept & get started',
+  'ob.intro': 'Three areas, one goal: get more out of your table football.',
+  'ob.liga_title': '🏆  Leagues', 'ob.matches_title': '⚪  Matches', 'ob.training_title': '⏱️  Training',
+  'ob.liga_text': 'Follow your leagues live – standings, teams, players and every match with a live ticker. Star ★ your favourites and get notified or read aloud as soon as it kicks off.',
+  'ob.matches_text': 'Count your own games: points, sets and stats in real time – and share the result as a slick graphic',
+  'ob.training_text': 'Get measurably better – time measurement, time feeling and success rate, with history, day summary and a per-person evaluation.',
+  'ob.stats_note': 'Entirely optional – change any time in Settings.',
+  'ob.footnote': ' This feature is reserved for the Fooseroo Android app and is not included in the web version.',
+
+  'acc.title': 'Account & Sync',
+  'acc.intro': 'Choose where your matches and training are stored.',
+  'acc.backup': 'Backup & Sync', 'acc.backup_desc': 'Back up and keep in sync across your devices.',
+  'acc.signed_in_as': 'Signed in as', 'acc.signout_q': 'Sign out this device only, or all devices? Your data is kept.',
+  'acc.this_device': 'This device', 'acc.all_devices': 'All devices',
+  'acc.signin_create': 'Sign in / create account', 'acc.send_code': 'Send code',
+  'acc.code_hint': 'Enter the code we sent you by email.', 'acc.confirm': 'Confirm',
+  'acc.group': 'Training group', 'acc.group_desc': 'Record together in real time.',
+  'acc.owner': 'Owner', 'acc.manage': 'Manage', 'acc.display_name_ph': 'My display name',
+  'acc.my_name_is': 'My display name: %s', 'acc.set_name': 'Set display name',
+  'acc.owner_hint': 'As owner: manage members, rename or delete in the app.',
+  'acc.leave_q': 'Really leave “%s”? You will lose access to the group data.',
+  'acc.leave': 'Leave', 'acc.leave_group': 'Leave group',
+  'acc.full_admin_hint': 'Full administration (members, roles, plans): in the Fooseroo Android app.',
+  'acc.name_dup': 'This name is already used in the group.',
+  'acc.save_failed': 'Could not be saved.', 'acc.leave_failed': 'Leaving failed.',
+
+  'gm.load_failed': 'Could not load the group.', 'gm.delete_failed': 'Deletion failed.',
+  'gm.moderator': 'Moderator', 'gm.member': 'Member',
+  'gm.join_code': 'Join code', 'gm.regen': 'Regenerate', 'gm.join_enabled': 'Joining by code allowed',
+  'gm.default_access': 'Default access for new members:', 'gm.write': 'Write', 'gm.read': 'Read only',
+  'gm.members': 'Members (%s)', 'gm.no_name': 'No name', 'gm.you': '(you)', 'gm.remove': 'Remove',
+  'gm.retention_title': 'Auto-delete results',
+  'gm.retention_hint': 'Days after which completed results are deleted (empty = off).',
+  'gm.off': 'off', 'gm.danger_zone': 'Danger zone', 'gm.delete_group': 'Delete group',
+  'gm.delete_warn_pre': 'This deletes the group and all its data for every member – irreversibly. Type the name ',
+  'gm.delete_warn_post': ' to confirm.', 'gm.delete_final': 'Delete permanently',
 }
 
 const DICT: Record<Lang, Record<string, string>> = { de, en }

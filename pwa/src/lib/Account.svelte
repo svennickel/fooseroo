@@ -6,6 +6,7 @@
   import { requestCode, verifyCode } from './auth'
   import { supabase } from './supabase'
   import { myGroupName, setGroupDisplayName, leaveGroup, type Group } from './data'
+  import { t } from './i18n.svelte'
   import GroupManage from './GroupManage.svelte'
 
   let manageGroup = $state<Group | null>(null)
@@ -41,15 +42,15 @@
     try {
       const { duplicate } = await setGroupDisplayName(g.id, v)
       names = { ...names, [g.id]: v }; editing = null
-      gMsg = { ...gMsg, [g.id]: duplicate ? 'Dieser Name wird in der Gruppe bereits verwendet.' : '' }
-    } catch { gMsg = { ...gMsg, [g.id]: 'Konnte nicht gespeichert werden.' } }
+      gMsg = { ...gMsg, [g.id]: duplicate ? t('acc.name_dup') : '' }
+    } catch { gMsg = { ...gMsg, [g.id]: t('acc.save_failed') } }
     finally { gBusy = null }
   }
   async function doLeave(g: Group) {
     if (gBusy) return
     gBusy = g.id
     try { await leaveGroup(g.id); leaveAsk = null; onGroupsChanged() }
-    catch { gMsg = { ...gMsg, [g.id]: 'Verlassen fehlgeschlagen.' } }
+    catch { gMsg = { ...gMsg, [g.id]: t('acc.leave_failed') } }
     finally { gBusy = null }
   }
 
@@ -74,82 +75,82 @@
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
   <div class="sheet">
     <div class="head">
-      <strong>Konto &amp; Sync</strong>
-      <button class="ghost small" onclick={onClose}>Schließen</button>
+      <strong>{t('acc.title')}</strong>
+      <button class="ghost small" onclick={onClose}>{t('common.close')}</button>
     </div>
-    <p class="intro">Wähle, wo deine Matches und Trainings gespeichert werden.</p>
+    <p class="intro">{t('acc.intro')}</p>
     <div class="scroll">
       <!-- Backup & Sync -->
       <div class="acard" class:active={signedIn}>
-        <div class="ctitle">☁️&nbsp; Backup &amp; Sync {#if signedIn}<span class="check">✓</span>{/if}</div>
-        <div class="cdesc">Sichern und auf deinen Geräten synchron halten.</div>
+        <div class="ctitle">☁️&nbsp; {t('acc.backup')} {#if signedIn}<span class="check">✓</span>{/if}</div>
+        <div class="cdesc">{t('acc.backup_desc')}</div>
         {#if signedIn}
-          <div class="acct">Angemeldet als <strong>{userEmail}</strong></div>
+          <div class="acct">{t('acc.signed_in_as')} <strong>{userEmail}</strong></div>
           {#if !confirmOut}
-            <button class="ghost small" onclick={() => (confirmOut = true)}>Abmelden</button>
+            <button class="ghost small" onclick={() => (confirmOut = true)}>{t('menu.signout')}</button>
           {:else}
-            <p class="hint">Nur dieses Gerät abmelden, oder alle Geräte? Deine Daten bleiben erhalten.</p>
+            <p class="hint">{t('acc.signout_q')}</p>
             <div class="btnrow">
-              <button class="ghost small" onclick={() => doSignOut(false)}>Dieses Gerät</button>
-              <button class="ghost small" onclick={() => doSignOut(true)}>Alle Geräte</button>
-              <button class="ghost small" onclick={() => (confirmOut = false)}>Abbrechen</button>
+              <button class="ghost small" onclick={() => doSignOut(false)}>{t('acc.this_device')}</button>
+              <button class="ghost small" onclick={() => doSignOut(true)}>{t('acc.all_devices')}</button>
+              <button class="ghost small" onclick={() => (confirmOut = false)}>{t('common.cancel')}</button>
             </div>
           {/if}
         {:else if step === 'idle'}
-          <button class="primary" onclick={() => (step = 'email')}>Anmelden / Konto anlegen</button>
+          <button class="primary" onclick={() => (step = 'email')}>{t('acc.signin_create')}</button>
         {:else if step === 'email'}
           <input type="email" inputmode="email" autocomplete="email" bind:value={email}
-                 placeholder="E-Mail-Adresse"
+                 placeholder={t('auth.email_ph')}
                  onkeydown={(e) => { if (e.key === 'Enter') send() }} />
-          <button class="primary" onclick={send} disabled={busy || !email.includes('@')}>Code senden</button>
+          <button class="primary" onclick={send} disabled={busy || !email.includes('@')}>{t('acc.send_code')}</button>
         {:else}
-          <p class="hint">Gib den Code ein, den wir dir per E-Mail geschickt haben.</p>
-          <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder="Code"
+          <p class="hint">{t('acc.code_hint')}</p>
+          <input inputmode="numeric" autocomplete="one-time-code" bind:value={code} placeholder={t('auth.code_ph')}
                  onkeydown={(e) => { if (e.key === 'Enter') verify() }} />
-          <button class="primary" onclick={verify} disabled={busy || !code.trim()}>Bestätigen</button>
-          <button class="ghost small" onclick={() => { step = 'email'; code = '' }}>Andere E-Mail</button>
+          <button class="primary" onclick={verify} disabled={busy || !code.trim()}>{t('acc.confirm')}</button>
+          <button class="ghost small" onclick={() => { step = 'email'; code = '' }}>{t('auth.other_email')}</button>
         {/if}
         {#if err}<p class="err">{err}</p>{/if}
       </div>
 
       <!-- Trainingsgruppe -->
       <div class="acard">
-        <div class="ctitle">👥&nbsp; Trainingsgruppe</div>
-        <div class="cdesc">Gemeinsam in Echtzeit eintragen.</div>
+        <div class="ctitle">👥&nbsp; {t('acc.group')}</div>
+        <div class="cdesc">{t('acc.group_desc')}</div>
         {#if signedIn && groups.length}
           {#each groups as g (g.id)}
             <div class="grow">
-              <div class="gname">{g.name}{#if g.ownerId && g.ownerId === myUserId}<span class="gtag">Inhaber:in</span>{/if}</div>
-              <button class="ghost small" onclick={() => (manageGroup = g)}>Verwalten</button>
+              <div class="gname">{g.name}{#if g.ownerId && g.ownerId === myUserId}<span class="gtag">{t('acc.owner')}</span>{/if}</div>
+              <button class="ghost small" onclick={() => (manageGroup = g)}>{t('acc.manage')}</button>
               {#if editing === g.id}
                 <div class="btnrow">
-                  <input class="ginput" bind:value={nameDraft} maxlength="40" placeholder="Mein Anzeigename"
+                  <input class="ginput" bind:value={nameDraft} maxlength="40" placeholder={t('acc.display_name_ph')}
                          onkeydown={(e) => { if (e.key === 'Enter') saveName(g) }} />
-                  <button class="primary" onclick={() => saveName(g)} disabled={gBusy === g.id || !nameDraft.trim()}>Speichern</button>
-                  <button class="ghost small" onclick={() => (editing = null)}>Abbrechen</button>
+                  <button class="primary" onclick={() => saveName(g)} disabled={gBusy === g.id || !nameDraft.trim()}>{t('common.save')}</button>
+                  <button class="ghost small" onclick={() => (editing = null)}>{t('common.cancel')}</button>
                 </div>
               {:else}
                 <button class="ghost small" onclick={() => startEdit(g)}>
-                  {names[g.id] ? `Mein Anzeigename: ${names[g.id]}` : 'Anzeigename festlegen'}
+                  {names[g.id] ? t('acc.my_name_is', names[g.id]!) : t('acc.set_name')}
                 </button>
               {/if}
               {#if g.ownerId && g.ownerId === myUserId}
-                <p class="hint">Als Inhaber:in: Mitglieder verwalten, umbenennen oder löschen in der App.</p>
+                <p class="hint">{t('acc.owner_hint')}</p>
               {:else if leaveAsk === g.id}
-                <p class="hint">„{g.name}" wirklich verlassen? Du verlierst den Zugriff auf die Gruppendaten.</p>
+                <p class="hint">{t('acc.leave_q', g.name)}</p>
                 <div class="btnrow">
-                  <button class="danger small" onclick={() => doLeave(g)} disabled={gBusy === g.id}>Verlassen</button>
-                  <button class="ghost small" onclick={() => (leaveAsk = null)}>Abbrechen</button>
+                  <button class="danger small" onclick={() => doLeave(g)} disabled={gBusy === g.id}>{t('acc.leave')}</button>
+                  <button class="ghost small" onclick={() => (leaveAsk = null)}>{t('common.cancel')}</button>
                 </div>
               {:else}
-                <button class="ghost small leave" onclick={() => { leaveAsk = g.id }}>Gruppe verlassen</button>
+                <button class="ghost small leave" onclick={() => { leaveAsk = g.id }}>{t('acc.leave_group')}</button>
               {/if}
               {#if gMsg[g.id]}<p class="hint warn">{gMsg[g.id]}</p>{/if}
             </div>
           {/each}
         {/if}
-        <button class="ghost small" onclick={() => { onClose(); onJoin() }}>Gruppe beitreten</button>
-        <p class="hint">Volle Verwaltung (Mitglieder, Rollen, Tarife): in der Fooseroo-App für Android.</p>
+        <button class="ghost small" onclick={() => { onClose(); onJoin() }}>{t('join.title')}</button>
+        <p class="hint">{t('acc.full_admin_hint')}</p>
       </div>
     </div>
   </div>
