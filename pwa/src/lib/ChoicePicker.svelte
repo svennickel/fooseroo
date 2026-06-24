@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { t } from './i18n.svelte'
   // Bottom-sheet chip picker — web port of the app's ChoicePicker. Single-select
   // (maxSelection=1) picks & closes on a tap; multi-select toggles chips and a
   // "Fertig" button confirms (exceeding the cap drops the oldest). The current
@@ -46,7 +47,7 @@
   <div class="sheet">
     <div class="head">
       <strong>{title}</strong>
-      {#if maxSelection > 1}<button class="ghost small" onclick={() => { onPicked(checked); onClose() }}>Fertig</button>{/if}
+      {#if maxSelection > 1}<button class="ghost small" onclick={() => { onPicked(checked); onClose() }}>{t('common.done')}</button>{/if}
     </div>
     <div class="chips">
       {#each display as item (item)}
@@ -60,7 +61,7 @@
       {#if allowAdd}
         {#if adding}
           <!-- svelte-ignore a11y_autofocus -->
-          <input class="addin" bind:value={newName} placeholder="Neuer Name" autofocus
+          <input class="addin" bind:value={newName} placeholder={t('common.add')} autofocus
                  onkeydown={(e) => { if (e.key === 'Enter') commitAdd() }} onblur={commitAdd} />
         {:else}
           <button class="chip add" onclick={() => (adding = true)} aria-label="Hinzufügen">＋</button>

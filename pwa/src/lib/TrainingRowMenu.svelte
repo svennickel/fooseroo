@@ -5,6 +5,7 @@
   // (id excludes the mode); both stay byte-compatible with CloudTrainingSync.
   import { changeTrainingPerson, retagTraining, deleteTraining, type EditableEntry } from './trainingstore'
   import { loadTrainingModes, saveTrainingModes, addPlayersToPool, type Ctx } from './data'
+  import { t } from './i18n.svelte'
   import ChoicePicker from './ChoicePicker.svelte'
 
   let { ctx, entry, pool, kindLabel, onClose, onChanged }:
@@ -19,7 +20,7 @@
   $effect(() => { loadTrainingModes(ctx, entry.kind).then((m) => { modes = m }).catch(() => {}) })
 
   const valueLabel = entry.kind === 'outcome'
-    ? (entry.success ? '✓ Treffer' : '✗ Fehler')
+    ? (entry.success ? t('training.hit') : t('training.miss'))
     : `${((entry.elapsedMs ?? 0) / 1000).toFixed(1)}s${entry.kind === 'measure_success' ? (entry.success ? ' ✓' : ' ✗') : ''}`
 
   async function run(fn: () => Promise<void>) {
@@ -41,28 +42,28 @@
   <div class="sheet">
     <div class="head"><strong>{entry.name || '—'} · {kindLabel(entry.kind)}</strong>
       <span class="val">{valueLabel}</span></div>
-    {#if entry.mode}<p class="cat">Kategorie: {entry.mode}</p>{/if}
+    {#if entry.mode}<p class="cat">{t('row.cat_prefix', entry.mode)}</p>{/if}
 
-    <button class="act" onclick={() => (picking = 'person')} disabled={busy}>Person ändern…</button>
-    <button class="act" onclick={() => (picking = 'mode')} disabled={busy}>Kategorie ändern…</button>
-    <button class="act danger" onclick={() => (confirming = true)} disabled={busy}>Eintrag löschen…</button>
-    <button class="ghost" onclick={onClose}>Abbrechen</button>
+    <button class="act" onclick={() => (picking = 'person')} disabled={busy}>{t('row.change_person')}</button>
+    <button class="act" onclick={() => (picking = 'mode')} disabled={busy}>{t('row.change_cat')}</button>
+    <button class="act danger" onclick={() => (confirming = true)} disabled={busy}>{t('row.delete')}</button>
+    <button class="ghost" onclick={onClose}>{t('common.cancel')}</button>
 
     {#if confirming}
       <div class="confirm">
-        <p>Wirklich löschen?</p>
+        <p>{t('row.confirm_delete')}</p>
         <div class="cbtns">
-          <button class="ghost small" onclick={() => (confirming = false)}>Abbrechen</button>
-          <button class="solid danger" onclick={() => run(() => deleteTraining(ctx, entry))}>Löschen</button>
+          <button class="ghost small" onclick={() => (confirming = false)}>{t('common.cancel')}</button>
+          <button class="solid danger" onclick={() => run(() => deleteTraining(ctx, entry))}>{t('common.delete')}</button>
         </div>
       </div>
     {/if}
 
     {#if picking === 'person'}
-      <ChoicePicker title="Person" items={poolState} selected={entry.name ? [entry.name] : []} maxSelection={1}
+      <ChoicePicker title={t('training.person')} items={poolState} selected={entry.name ? [entry.name] : []} maxSelection={1}
         onAdd={() => {}} onPicked={(n) => { if (n[0]) pickPerson(n[0]) }} onClose={() => (picking = null)} />
     {:else if picking === 'mode'}
-      <ChoicePicker title="Kategorie" items={modes} selected={entry.mode ? [entry.mode] : []} maxSelection={1}
+      <ChoicePicker title={t('training.category')} items={modes} selected={entry.mode ? [entry.mode] : []} maxSelection={1}
         onAdd={() => {}} onPicked={(n) => { if (n[0]) pickMode(n[0]) }} onClose={() => (picking = null)} />
     {/if}
   </div>

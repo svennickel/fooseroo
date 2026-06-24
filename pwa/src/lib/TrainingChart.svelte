@@ -10,6 +10,7 @@
   import { loadTrainingWindows, type TrainingItem, type TimeWindow, type Ctx } from './data'
   import { secondsLabel, OVERTIME_MS } from './trainingmath'
   import { outcomeTargetOf } from './trainingprefs'
+  import { t } from './i18n.svelte'
 
   let { items, ctx = null }: { items: TrainingItem[]; ctx?: Ctx } = $props()
 
@@ -111,7 +112,7 @@
 </script>
 
 {#if blocks.length}
-  <svg class="chart" viewBox="0 0 {W} {totalH}" preserveAspectRatio="xMinYMin meet" role="img" aria-label="Trainingszeiten">
+  <svg class="chart" viewBox="0 0 {W} {totalH}" preserveAspectRatio="xMinYMin meet" role="img" aria-label={t('chart.times')}>
     {#each blocks as b, bi}
       {@const by = blockY(bi)}
       <text x={PAD} y={by + 14} class="title">{b.title}</text>
@@ -166,7 +167,7 @@
       <div class="plot">
         <div class="phead"><span class="pname">{p.name}</span>
           <span class="pcat">{p.title}{#if p.target != null} · Ziel {p.target}%{/if}</span></div>
-        <svg viewBox="0 0 300 36" class="strip" preserveAspectRatio="none" role="img" aria-label="Erfolgsquote">
+        <svg viewBox="0 0 300 36" class="strip" preserveAspectRatio="none" role="img" aria-label={t('chart.rate')}>
           <rect x={left} y="4" width={right - left} height="28" rx="8" class="area" />
           {#each p.marks as hit, i}
             {@const cx = left + (i + 0.5) / n * (right - left)}

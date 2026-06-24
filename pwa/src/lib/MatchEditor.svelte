@@ -67,7 +67,9 @@
   function scheduleSave() {
     if (!hasContent) return
     if (saveTimer) clearTimeout(saveTimer)
-    saveTimer = setTimeout(() => { saveRow(running).catch(() => {}) }, 1200)
+    // Surface a persistent live-save failure instead of swallowing it — otherwise a
+    // match that never reaches the cloud (RLS/offline) just silently disappears.
+    saveTimer = setTimeout(() => { saveRow(running).then(() => { err = '' }).catch(() => { err = 'Nicht gespeichert – Verbindung?' }) }, 1200)
   }
   async function saveRow(run: boolean) {
     await saveMatchRow({ groupId: ctx, ts, teamA: labelA, teamB: labelB,

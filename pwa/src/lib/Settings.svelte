@@ -1,11 +1,11 @@
 <script lang="ts">
-  // Settings dialog (from the three-dot menu) — mirrors the app's settings: Design
-  // (System/Hell/Dunkel), anonymous-statistics consent (default off), and a
-  // read-only "Datenschutz & Nutzungsbedingungen". No countdown option (no such
-  // feature on the web).
+  // Settings dialog (from the three-dot menu) — mirrors the app's settings: language,
+  // theme (System/Light/Dark), training (rod limits + countdown direction),
+  // anonymous-statistics consent (default off) and a read-only "Privacy & Terms".
   import Terms from './Terms.svelte'
   import { getTheme, applyTheme, analyticsEnabled, setAnalytics, type ThemeMode } from './prefs'
   import { rodMode, setRodMode, countdownDescending, setCountdownDescending, type RodMode } from './trainingprefs'
+  import { t, getLangPref, setLangPref, type LangPref } from './i18n.svelte'
 
   let { onClose }: { onClose: () => void } = $props()
 
@@ -13,63 +13,74 @@
   let stats = $state(analyticsEnabled())
   let rods = $state<RodMode>(rodMode())
   let descending = $state(countdownDescending())
+  let langPref = $state<LangPref>(getLangPref())
   let showTerms = $state(false)
 
   function pickTheme(m: ThemeMode) { theme = m; applyTheme(m) }
   function toggleStats() { stats = !stats; setAnalytics(stats) }
   function pickRods(m: RodMode) { rods = m; setRodMode(m) }
   function toggleDescending() { descending = !descending; setCountdownDescending(descending) }
+  function pickLang(p: LangPref) { langPref = p; setLangPref(p) }
 
-  const RODS: { v: RodMode; label: string }[] = [
-    { v: 'ITSF', label: 'ITSF (10s / 15s)' }, { v: 'Saarland', label: 'Saarland (20s)' }
-  ]
-
-  const THEMES: { v: ThemeMode; label: string }[] = [
-    { v: 'system', label: 'System' }, { v: 'light', label: 'Hell' }, { v: 'dark', label: 'Dunkel' }
-  ]
+  const THEMES = $derived<{ v: ThemeMode; label: string }[]>([
+    { v: 'system', label: t('settings.system') }, { v: 'light', label: t('settings.light') }, { v: 'dark', label: t('settings.dark') }
+  ])
+  const LANGS = $derived<{ v: LangPref; label: string }[]>([
+    { v: 'system', label: t('settings.system') }, { v: 'de', label: 'Deutsch' }, { v: 'en', label: 'English' }
+  ])
+  const RODS = $derived<{ v: RodMode; label: string }[]>([
+    { v: 'ITSF', label: t('settings.rods_itsf') }, { v: 'Saarland', label: t('settings.rods_saar') }
+  ])
 </script>
 
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
   <div class="sheet">
     {#if showTerms}
       <div class="head">
-        <button class="ghost small" onclick={() => (showTerms = false)}>← Zurück</button>
-        <strong>Datenschutz &amp; Nutzungsbedingungen</strong>
+        <button class="ghost small" onclick={() => (showTerms = false)}>{t('common.back')}</button>
+        <strong>{t('settings.terms_title')}</strong>
       </div>
       <div class="scroll"><Terms /></div>
     {:else}
       <div class="head">
-        <strong>Einstellungen</strong>
-        <button class="ghost small" onclick={onClose}>Schließen</button>
+        <strong>{t('settings.title')}</strong>
+        <button class="ghost small" onclick={onClose}>{t('common.close')}</button>
       </div>
       <div class="scroll">
-        <div class="label">Design</div>
+        <div class="label">{t('settings.language')}</div>
         <div class="seg">
-          {#each THEMES as t}
-            <button class="segbtn" class:active={theme === t.v} onclick={() => pickTheme(t.v)}>{t.label}</button>
+          {#each LANGS as opt}
+            <button class="segbtn" class:active={langPref === opt.v} onclick={() => pickLang(opt.v)}>{opt.label}</button>
           {/each}
         </div>
 
-        <div class="label">Training</div>
+        <div class="label">{t('settings.design')}</div>
         <div class="seg">
-          {#each RODS as r}
-            <button class="segbtn" class:active={rods === r.v} onclick={() => pickRods(r.v)}>{r.label}</button>
+          {#each THEMES as opt}
+            <button class="segbtn" class:active={theme === opt.v} onclick={() => pickTheme(opt.v)}>{opt.label}</button>
+          {/each}
+        </div>
+
+        <div class="label">{t('settings.training')}</div>
+        <div class="seg">
+          {#each RODS as opt}
+            <button class="segbtn" class:active={rods === opt.v} onclick={() => pickRods(opt.v)}>{opt.label}</button>
           {/each}
         </div>
         <button class="switchrow" onclick={toggleDescending} aria-pressed={descending}>
-          <span>Restzeit herunterzählen statt verstrichener Zeit</span>
+          <span>{t('settings.countdown_desc')}</span>
           <span class="sw" class:on={descending}><span class="knob"></span></span>
         </button>
-        <p class="note">Die Farbe (grün→amber→rot) folgt immer der Restzeit. Im Browser gespeichert.</p>
+        <p class="note">{t('settings.countdown_note')}</p>
 
         <button class="switchrow" onclick={toggleStats} aria-pressed={stats}>
-          <span>Unterstütze die Weiterentwicklung über anonyme Statistiken</span>
+          <span>{t('settings.stats')}</span>
           <span class="sw" class:on={stats}><span class="knob"></span></span>
         </button>
-        <p class="note">Ganz freiwillig – Standard: aus, jederzeit änderbar. Im Browser gespeichert.</p>
+        <p class="note">{t('settings.stats_note')}</p>
 
         <button class="linkrow" onclick={() => (showTerms = true)}>
-          Datenschutz &amp; Nutzungsbedingungen
+          {t('settings.terms_link')}
           <span class="chev">›</span>
         </button>
       </div>

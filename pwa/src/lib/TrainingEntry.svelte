@@ -10,15 +10,16 @@
     dayKey, type Ctx, type TrainingItem, type TimeWindow } from './data'
   import { signedElapsed, countdownColor, timeBoundLabel, OVERTIME_MS } from './trainingmath'
   import { rodLimits, buttonModeOf, counterHiddenOf, countdownDescending } from './trainingprefs'
+  import { t } from './i18n.svelte'
   import ChoicePicker from './ChoicePicker.svelte'
   import TrainingCategoryEditor from './TrainingCategoryEditor.svelte'
 
-  let { ctx, pool, peerTraining, onClose, onSaved }:
-    { ctx: Ctx; pool: string[]; peerTraining: TrainingItem[]
+  type Kind = 'measure' | 'measure_success' | 'outcome'
+  let { ctx, pool, peerTraining, initialKind = 'measure', onClose, onSaved }:
+    { ctx: Ctx; pool: string[]; peerTraining: TrainingItem[]; initialKind?: Kind
       onClose: () => void; onSaved: () => void } = $props()
 
-  type Kind = 'measure' | 'measure_success' | 'outcome'
-  let kind = $state<Kind>('measure')
+  let kind = $state<Kind>(initialKind)
   let name = $state('')
   let mode = $state('')
   let poolState = $state<string[]>([...pool])
@@ -100,31 +101,31 @@
     busy = true; err = ''
     try {
       await saveMeasure(ctx, { name: name.trim(), mode: mode.trim(), elapsedMs: ms, limit: rodSeconds, ts: Date.now(), success })
-      note = success === null ? '✓ gespeichert' : success ? '✓ Erfolg gespeichert' : '✗ Fehler gespeichert'
+      note = success === null ? t('training.saved') : success ? t('training.saved_ok') : t('training.saved_fail')
       setTimeout(() => (note = ''), 1600)
       onSaved()
-    } catch { err = 'Speichern fehlgeschlagen.' } finally { busy = false }
+    } catch { err = t('training.save_failed') } finally { busy = false }
   }
 
   function saveOut(success: boolean) {
     if (busy) return
     busy = true; err = ''
     saveOutcome(ctx, { name: name.trim(), mode: mode.trim(), ts: Date.now(), success })
-      .then(() => { note = success ? '✓ Treffer gespeichert' : '✗ Fehler gespeichert'; setTimeout(() => (note = ''), 1600); onSaved() })
-      .catch(() => { err = 'Speichern fehlgeschlagen.' })
+      .then(() => { note = success ? t('training.saved_hit') : t('training.saved_miss'); setTimeout(() => (note = ''), 1600); onSaved() })
+      .catch(() => { err = t('training.save_failed') })
       .finally(() => { busy = false })
   }
 
   // The big display: text + signal colour, mirroring timerView*.
   const display = $derived.by(() => {
     if (running) {
-      if (hidden) return { text: 'läuft …', color: '#43A047' }
+      if (hidden) return { text: t('training.running'), color: '#43A047' }
       const shown = countdownDescending() ? remainingMs : elapsedMs
       return { text: signedElapsed(shown), color: countdownColor(remainingMs, limitMs) }
     }
-    if (gaveUp) return { text: 'Zeit!', color: '#E53935' }
+    if (gaveUp) return { text: t('training.time_over'), color: '#E53935' }
     if (hasResult) return { text: signedElapsed(elapsedMs), color: lastFoul ? '#E53935' : '#43A047' }
-    return { text: 'Start', color: '#43A047' }
+    return { text: t('training.start'), color: '#43A047' }
   })
 
   const showShort = $derived(btnMode !== 'LONG')
@@ -135,31 +136,31 @@
 
 <div class="overlay" role="presentation">
   <div class="sheet">
-    <div class="head"><strong>Neuer Trainingseintrag</strong>
-      <button class="ghost small" onclick={() => { reset(); onClose() }}>Schließen</button></div>
+    <div class="head"><strong>{t('training.new')}</strong>
+      <button class="ghost small" onclick={() => { reset(); onClose() }}>{t('common.close')}</button></div>
 
     <div class="kinds">
-      <button class:on={kind === 'measure'} onclick={() => { kind = 'measure'; reset() }}>Zeitmessung</button>
-      <button class:on={kind === 'measure_success'} onclick={() => { kind = 'measure_success'; reset() }}>Zeit &amp; Erfolg</button>
-      <button class:on={kind === 'outcome'} onclick={() => { kind = 'outcome'; reset() }}>Erfolgsquote</button>
+      <button class:on={kind === 'measure'} onclick={() => { kind = 'measure'; reset() }}>{t('training.kind_measure')}</button>
+      <button class:on={kind === 'measure_success'} onclick={() => { kind = 'measure_success'; reset() }}>{t('training.kind_success')}</button>
+      <button class:on={kind === 'outcome'} onclick={() => { kind = 'outcome'; reset() }}>{t('training.kind_outcome')}</button>
     </div>
 
-    <div class="pick"><span class="plabel">Name</span>
-      <button class="pchip" class:set={!!name} onclick={() => (picking = 'name')}>{name || 'Person wählen'}</button></div>
-    <div class="pick"><span class="plabel">Kategorie</span>
+    <div class="pick"><span class="plabel">{t('training.name')}</span>
+      <button class="pchip" class:set={!!name} onclick={() => (picking = 'name')}>{name || t('training.pick_person')}</button></div>
+    <div class="pick"><span class="plabel">{t('training.category')}</span>
       <div class="catrow">
-        <button class="pchip" class:set={!!mode} onclick={() => (picking = 'mode')}>{mode || 'Kategorie wählen'}</button>
-        {#if mode}<button class="edit" aria-label="Kategorie bearbeiten" onclick={() => (editing = mode)}>✎</button>{/if}
+        <button class="pchip" class:set={!!mode} onclick={() => (picking = 'mode')}>{mode || t('training.pick_category')}</button>
+        {#if mode}<button class="edit" aria-label={t('training.category')} onclick={() => (editing = mode)}>✎</button>{/if}
       </div>
     </div>
     {#if mode && timeBoundLabel(win?.fromSeconds, win?.toSeconds)}
-      <p class="winlbl">Zeitfenster{timeBoundLabel(win?.fromSeconds, win?.toSeconds)}</p>
+      <p class="winlbl">{t('training.window_label')}{timeBoundLabel(win?.fromSeconds, win?.toSeconds)}</p>
     {/if}
 
     {#if kind === 'outcome'}
       <div class="outrow">
-        <button class="big ok" onclick={() => saveOut(true)} disabled={busy}>✓ Treffer</button>
-        <button class="big bad" onclick={() => saveOut(false)} disabled={busy}>✗ Fehler</button>
+        <button class="big ok" onclick={() => saveOut(true)} disabled={busy}>{t('training.hit')}</button>
+        <button class="big bad" onclick={() => saveOut(false)} disabled={busy}>{t('training.miss')}</button>
       </div>
       {#if note}<p class="note">{note}</p>{/if}
     {:else}
@@ -174,25 +175,25 @@
             <button class="big bad" onclick={() => stop(false)}>✗</button>
           </div>
         {:else}
-          <button class="big stop" onclick={() => stop(null)}>Stopp</button>
+          <button class="big stop" onclick={() => stop(null)}>{t('training.stop')}</button>
         {/if}
       {:else}
         <div class="rods">
           {#if showShort}<button class="big" onclick={() => start(short)}>{short}s</button>{/if}
           {#if showLong}<button class="big" onclick={() => start(long)}>{long}s</button>{/if}
         </div>
-        <p class="hint">Knopf startet die {kind === 'measure_success' ? 'Messung – dann ✓/✗ zum Stoppen' : 'Messung – Anzeige oder „Stopp“ beendet sie'}.</p>
+        <p class="hint">{kind === 'measure_success' ? t('training.hint_success') : t('training.hint_measure')}</p>
       {/if}
       {#if note}<p class="note">{note}</p>{/if}
     {/if}
     {#if err}<p class="err">{err}</p>{/if}
 
     {#if picking === 'name'}
-      <ChoicePicker title="Person" items={poolState} selected={name ? [name] : []} maxSelection={1}
+      <ChoicePicker title={t('training.person')} items={poolState} selected={name ? [name] : []} maxSelection={1}
         counts={nameCounts} onAdd={(n) => addName(n)}
         onPicked={(names) => { name = names[0] ?? name }} onClose={() => (picking = null)} />
     {:else if picking === 'mode'}
-      <ChoicePicker title="Kategorie" items={modes} selected={mode ? [mode] : []} maxSelection={1}
+      <ChoicePicker title={t('training.category')} items={modes} selected={mode ? [mode] : []} maxSelection={1}
         counts={modeCounts} suffixes={modeSuffixes} onAdd={(m) => addMode(m)}
         onEdit={(m) => { picking = null; editing = m }}
         onPicked={(names) => { mode = names[0] ?? mode }} onClose={() => (picking = null)} />

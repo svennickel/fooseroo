@@ -10,6 +10,7 @@
   import { dayKey, type TrainingItem, type MatchItem, type Ctx } from './data'
   import { encodeTraining } from './share'
   import { epochDay } from './trainingmath'
+  import { t, getLang } from './i18n.svelte'
 
   let { view, ctx, items, matches, persons, onClose, onChanged }:
     { view: 'day' | 'person'; ctx: Ctx; items: TrainingItem[]; matches: MatchItem[]
@@ -43,9 +44,9 @@
     const date = new Date(y, mo, d)
     const today = dayKey(Date.now())
     const yest = dayKey(Date.now() - 86400000)
-    if (key === today) return 'Heute'
-    if (key === yest) return 'Gestern'
-    return date.toLocaleDateString('de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+    if (key === today) return t('eval.today')
+    if (key === yest) return t('eval.yesterday')
+    return date.toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
   }
 
   const dayItems = $derived(items.filter((t) => dayKey(t.at) === day))
@@ -63,13 +64,13 @@
   let pickingPerson = $state(false)
 
   async function share() {
-    const title = view === 'day' ? `Tagesauswertung – ${label(day)}` : `Einzelauswertung – ${person}`
+    const title = view === 'day' ? `${t('eval.day')} – ${label(day)}` : `${t('eval.person')} – ${person}`
     let text = title
     if (view === 'day') {
       const n = dayItems.length, m = dayMatches.length
-      text += `\n${n} Trainingseinträge` + (m ? `, ${m} Begegnungen` : '')
+      text += `\n${t('eval.entries_n', n)}` + (m ? t('eval.matches_n', m) : '')
     } else {
-      text += `\n${items.filter((t) => t.name === person).length} Trainingseinträge`
+      text += `\n${t('eval.entries_n', items.filter((t) => t.name === person).length)}`
     }
     // In a group, append the deep link to the shared day (mirrors the app's token).
     let url: string | undefined
@@ -91,22 +92,22 @@
 <div class="overlay" role="presentation">
   <div class="sheet">
     <div class="head">
-      <strong>{view === 'day' ? 'Tagesauswertung' : 'Einzelauswertung'}</strong>
+      <strong>{view === 'day' ? t('eval.day') : t('eval.person')}</strong>
       <div class="hbtns">
-        <button class="ghost" onclick={share}>Teilen</button>
-        <button class="ghost" onclick={onClose}>Schließen</button>
+        <button class="ghost" onclick={share}>{t('eval.share')}</button>
+        <button class="ghost" onclick={onClose}>{t('common.close')}</button>
       </div>
     </div>
-    {#if copied}<p class="note">In die Zwischenablage kopiert</p>{/if}
+    {#if copied}<p class="note">{t('eval.copied')}</p>{/if}
 
     {#if view === 'day'}
-      <button class="sel" onclick={() => (pickingDay = true)}>{day ? label(day) : 'Tag wählen'} ▾</button>
+      <button class="sel" onclick={() => (pickingDay = true)}>{day ? label(day) : t('eval.pick_day')} ▾</button>
       {#if dayItems.length === 0 && dayMatches.length === 0}
-        <p class="hint">Kein Training und keine Begegnungen an diesem Tag.</p>
+        <p class="hint">{t('eval.empty_day')}</p>
       {:else}
         <TrainingChart items={dayItems} {ctx} />
         {#if dayMatches.length}
-          <h4 class="sub">Begegnungen</h4>
+          <h4 class="sub">{t('eval.matches')}</h4>
           <ul class="list">
             {#each dayMatches as m}
               <li class="mcard"><span class="mteams">{m.homeName} : {m.awayName}</span>
@@ -116,23 +117,23 @@
         {/if}
       {/if}
     {:else}
-      <button class="sel" onclick={() => (pickingPerson = true)}>{person || 'Person wählen'} ▾</button>
+      <button class="sel" onclick={() => (pickingPerson = true)}>{person || t('training.pick_person')} ▾</button>
       {#if personDays.length === 0}
-        <p class="hint">Keine Trainingsergebnisse für diese Person.</p>
+        <p class="hint">{t('eval.empty_person')}</p>
       {:else}
         {#each personDays.slice(0, shownDays) as [k, list]}
           <h4 class="sub">{label(k)}</h4>
           <TrainingChart items={list} {ctx} />
         {/each}
         {#if shownDays < personDays.length}
-          <button class="ghost wide" onclick={() => (shownDays += 1)}>Frühere anzeigen</button>
+          <button class="ghost wide" onclick={() => (shownDays += 1)}>{t('eval.show_earlier')}</button>
         {/if}
       {/if}
     {/if}
 
     {#if pickingDay}
       <div class="picker" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) pickingDay = false }}>
-        <div class="psheet"><strong>Tag</strong>
+        <div class="psheet"><strong>{t('eval.pick_day')}</strong>
           {#each days as d}
             <button class="prow" class:on={d === day} onclick={() => { day = d; pickingDay = false }}>{d === day ? '✓ ' : ''}{label(d)}</button>
           {/each}
@@ -141,7 +142,7 @@
     {/if}
     {#if pickingPerson}
       <div class="picker" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) pickingPerson = false }}>
-        <div class="psheet"><strong>Person</strong>
+        <div class="psheet"><strong>{t('training.person')}</strong>
           {#each people as p}
             <button class="prow" class:on={p === person} onclick={() => { person = p; shownDays = 1; pickingPerson = false }}>{p === person ? '✓ ' : ''}{p}</button>
           {/each}

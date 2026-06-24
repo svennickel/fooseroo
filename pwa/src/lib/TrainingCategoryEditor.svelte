@@ -8,6 +8,7 @@
   import { saveTrainingWindow, type Ctx } from './data'
   import { rodLimits, buttonModeOf, setButtonMode, counterHiddenOf, setCounterHidden,
     outcomeTargetOf, setOutcomeTarget, type ButtonMode } from './trainingprefs'
+  import { t } from './i18n.svelte'
 
   let { ctx, kind, mode, initialWindow, onClose, onSaved }:
     { ctx: Ctx; kind: 'measure' | 'measure_success' | 'outcome'; mode: string
@@ -40,43 +41,43 @@
         setOutcomeTarget(ctx, mode, t == null ? null : Math.max(0, Math.min(100, Math.round(t))))
       }
       onSaved(); onClose()
-    } catch { err = 'Speichern fehlgeschlagen.' } finally { busy = false }
+    } catch { err = t('training.save_failed') } finally { busy = false }
   }
 </script>
 
 <div class="overlay" onclick={(e) => { if (e.target === e.currentTarget) onClose() }} role="presentation">
   <div class="sheet">
-    <div class="head"><strong>Kategorie „{mode || 'Standard'}“</strong>
-      <button class="ghost" onclick={onClose}>Schließen</button></div>
+    <div class="head"><strong>{t('cat.title', mode || t('cat.std'))}</strong>
+      <button class="ghost" onclick={onClose}>{t('common.close')}</button></div>
 
     {#if timed}
-      <div class="grp"><span class="lbl">Angebotene Knöpfe</span>
+      <div class="grp"><span class="lbl">{t('cat.buttons')}</span>
         <div class="seg">
-          <button class:on={buttons === 'BOTH'} onclick={() => (buttons = 'BOTH')}>{short}s &amp; {long}s</button>
-          <button class:on={buttons === 'SHORT'} onclick={() => (buttons = 'SHORT')}>nur {short}s</button>
-          <button class:on={buttons === 'LONG'} onclick={() => (buttons = 'LONG')}>nur {long}s</button>
+          <button class:on={buttons === 'BOTH'} onclick={() => (buttons = 'BOTH')}>{t('cat.both', `${short}s`, `${long}s`)}</button>
+          <button class:on={buttons === 'SHORT'} onclick={() => (buttons = 'SHORT')}>{t('cat.only', `${short}s`)}</button>
+          <button class:on={buttons === 'LONG'} onclick={() => (buttons = 'LONG')}>{t('cat.only', `${long}s`)}</button>
         </div>
       </div>
 
-      <label class="row"><span>Zähler beim Laufen verbergen</span>
+      <label class="row"><span>{t('cat.hide_counter')}</span>
         <input type="checkbox" bind:checked={hideCounter} /></label>
 
-      <div class="grp"><span class="lbl">Zeitfenster (optional, Sek.)</span>
+      <div class="grp"><span class="lbl">{t('cat.window')}</span>
         <div class="winrow">
-          <label class="fld">Von<input inputmode="decimal" bind:value={from} placeholder="—" /></label>
-          <label class="fld">Bis<input inputmode="decimal" bind:value={to} placeholder="—" /></label>
+          <label class="fld">{t('cat.from')}<input inputmode="decimal" bind:value={from} placeholder="—" /></label>
+          <label class="fld">{t('cat.to')}<input inputmode="decimal" bind:value={to} placeholder="—" /></label>
         </div>
-        <p class="hint">Innerhalb des Fensters grün, davor/danach orange, über dem Limit rot.</p>
+        <p class="hint">{t('cat.window_hint')}</p>
       </div>
     {:else}
-      <div class="grp"><span class="lbl">Ziel-Erfolgsquote (optional, %)</span>
+      <div class="grp"><span class="lbl">{t('cat.target')}</span>
         <label class="fld"><input inputmode="numeric" bind:value={target} placeholder="—" /></label>
-        <p class="hint">Erreicht die Quote das Ziel, wird sie grün angezeigt, sonst orange.</p>
+        <p class="hint">{t('cat.target_hint')}</p>
       </div>
     {/if}
 
     {#if err}<p class="err">{err}</p>{/if}
-    <button class="primary" onclick={save} disabled={busy}>Speichern</button>
+    <button class="primary" onclick={save} disabled={busy}>{t('common.save')}</button>
   </div>
 </div>
 

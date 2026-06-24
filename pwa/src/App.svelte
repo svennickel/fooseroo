@@ -12,6 +12,7 @@
   import { speak, cancelSpeech, speechSupported, acquireWakeLock, releaseWakeLock, reacquireWakeLockIfWanted } from './lib/live'
   import { matchStartLine, goalLine, currentScoreLine, setWinLines, correctionLine, finalLine, timeoutLine, recapLine } from './lib/commentary'
   import { applyTheme, getTheme, termsAccepted, onboardingShown } from './lib/prefs'
+  import { t, initLang, getLang } from './lib/i18n.svelte'
   import Onboarding from './lib/Onboarding.svelte'
   import Settings from './lib/Settings.svelte'
   import Account from './lib/Account.svelte'
@@ -40,6 +41,8 @@
   let showPersonPicker = $state(false)
   let trainingEntry = $state(false)
   let trainingEval = $state<'day' | 'person' | null>(null)
+  let entryKind = $state<'measure' | 'measure_success' | 'outcome'>('measure')
+  function openEntry(k: 'measure' | 'measure_success' | 'outcome') { entryKind = k; trainingEntry = true }
   let editingRow = $state<TrainingItem | null>(null)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
@@ -50,7 +53,16 @@
   // Match scoring editor (new / edit), overlay.
   let matchEditor = $state<{ mode: 'new' | 'edit'; initial: MatchItem | null } | null>(null)
   const defaultCategory = (typeof navigator !== 'undefined' && navigator.language?.startsWith('en')) ? 'Free play' : 'Freies Spiel'
-  function onMatchSaved() { matchEditor = null; reloadData(true) }
+  async function onMatchSaved() {
+    matchEditor = null
+    await reloadData(true)
+    // Make the just-saved match visible no matter what filters were active: jump the
+    // view to its day and category (it's the newest row → matches[0]). Without this a
+    // match saved under a different category/day than the current filter silently
+    // vanished from the list (it was in the cloud, just filtered out).
+    const newest = matches[0]
+    if (newest) { dayFilter = dayOf(newest.at); catFilter = newest.category ?? '' }
+  }
   let ready = $state(false)
 
   // Auth form
@@ -149,7 +161,7 @@
   }
 
   const kindLabel = (k: string) =>
-    k === 'measure' ? 'Zeitmessung' : k === 'measure_success' ? 'Zeit & Erfolg' : 'Erfolgsquote'
+    k === 'measure' ? t('training.kind_measure') : k === 'measure_success' ? t('training.kind_success') : t('training.kind_outcome')
 
   // Match detail / live view
   let selected = $state<MatchItem | null>(null)
@@ -386,6 +398,7 @@
 
   onMount(() => {
     applyTheme(getTheme())
+    initLang()
     if (isIOS) document.documentElement.classList.add('ios')   // OS-specific UI tweaks
     gate = !termsAccepted() || !onboardingShown()
     appBase = location.pathname.replace(/[^/]*$/, '')   // e.g. "/app/" (SPA base)
@@ -744,25 +757,25 @@
   {:else if route.type === 'training'}
     <!-- Shared training day deep link -->
     {#if needsAuthForShare}
-      <p>Eine geteilte Trainings-Auswertung wurde mit dir geteilt. Melde dich an, um sie anzusehen.</p>
+      <p>{t('shared.training_intro')}</p>
       {@render authForm()}
     {:else if sharedTrainingState === 'loading'}
-      <p class="hint">Geteilte Trainings-Auswertung wird geladen…</p>
+      <p class="hint">{t('shared.training_loading')}</p>
     {:else if sharedTraining}
-      <div class="meta">{sharedTraining.groupName} · geteilte Tagesauswertung</div>
-      <h3 class="sharedday">{new Date(sharedTraining.dayNumber * 86400000).toLocaleDateString('de-DE', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</h3>
+      <div class="meta">{t('shared.training_label', sharedTraining.groupName)}</div>
+      <h3 class="sharedday">{new Date(sharedTraining.dayNumber * 86400000).toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'de-DE', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</h3>
       {#if sharedTraining.items.length === 0}
-        <p class="hint">An diesem Tag wurden in dieser Gruppe keine Trainingseinträge erfasst.</p>
+        <p class="hint">{t('shared.training_empty')}</p>
       {:else}
         <TrainingChart items={sharedTraining.items} ctx={sharedTraining.groupId} />
       {/if}
-      <button class="newmatch" onclick={() => { ctx = sharedTraining!.groupId; tab = 'training'; route = { type: 'home' }; location.hash = ''; reloadData() }}>In der Gruppe öffnen</button>
-      <a class="ghost-link" href="#/">Zur Übersicht</a>
+      <button class="newmatch" onclick={() => { ctx = sharedTraining!.groupId; tab = 'training'; route = { type: 'home' }; location.hash = ''; reloadData() }}>{t('shared.training_open')}</button>
+      <a class="ghost-link" href="#/">{t('common.overview')}</a>
     {:else if sharedTrainingState === 'notfound'}
-      <p>Diese geteilte Auswertung wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe.</p>
-      <a class="ghost-link" href="#/">Zur Übersicht</a>
+      <p>{t('shared.training_notfound')}</p>
+      <a class="ghost-link" href="#/">{t('common.overview')}</a>
     {:else}
-      <p class="err">Die Auswertung konnte nicht geladen werden. Bitte später erneut versuchen.</p>
+      <p class="err">{t('shared.training_error')}</p>
     {/if}
 
   {:else if route.type === 'join'}
@@ -905,16 +918,25 @@
         </ul>
       {/if}
     {:else}
-      <button class="newmatch" onclick={() => (trainingEntry = true)}>＋ Neuer Trainingseintrag</button>
-      <div class="evalrow">
-        <button class="evalbtn" onclick={() => (trainingEval = 'day')}>Tagesauswertung</button>
-        <button class="evalbtn" onclick={() => (trainingEval = 'person')}>Einzelauswertung</button>
+      <!-- Training hub like the app's TrainingHub: a card per evaluation + recording mode. -->
+      <div class="hub">
+        <button class="hubcard" onclick={() => (trainingEval = 'day')}>
+          <span class="ht">{t('hub.daysummary')}</span><span class="hd">{t('hub.daysummary_desc')}</span></button>
+        <button class="hubcard" onclick={() => (trainingEval = 'person')}>
+          <span class="ht">{t('hub.singleeval')}</span><span class="hd">{t('hub.singleeval_desc')}</span></button>
+        <button class="hubcard rec" onclick={() => openEntry('outcome')}>
+          <span class="ht">{t('hub.successrate')}</span><span class="hd">{t('hub.successrate_desc')}</span></button>
+        <button class="hubcard rec" onclick={() => openEntry('measure')}>
+          <span class="ht">{t('hub.timemeasure')}</span><span class="hd">{t('hub.timemeasure_desc')}</span></button>
+        <button class="hubcard rec" onclick={() => openEntry('measure_success')}>
+          <span class="ht">{t('hub.timesuccess')}</span><span class="hd">{t('hub.timesuccess_desc')}</span></button>
       </div>
       {#if matchesState === 'loading'}
-        <p class="hint">Lädt…</p>
+        <p class="hint">{t('common.loading')}</p>
       {:else if shownTraining.length === 0}
-        <p class="hint">Keine Trainingsergebnisse{#if dayFilter} an diesem Tag{/if}.</p>
+        <p class="hint">{t('training.empty')}{#if dayFilter}{t('training.empty_day')}{/if}.</p>
       {:else}
+        <h4 class="recenth">{t('hub.recent')}</h4>
         <TrainingChart items={shownTraining} {ctx} />
         <ul class="list">
           {#each shownTraining.slice(0, 50) as t}
@@ -970,7 +992,7 @@
                   onClose={() => (showCatEditor = false)} onChanged={() => reloadData(true)} />
 {/if}
 {#if trainingEntry}
-  <TrainingEntry {ctx} pool={[...new Set([...playerPool, ...playerSuggestions, ...trainingNames])]} peerTraining={training}
+  <TrainingEntry {ctx} initialKind={entryKind} pool={[...new Set([...playerPool, ...playerSuggestions, ...trainingNames])]} peerTraining={training}
                  onClose={() => (trainingEntry = false)} onSaved={() => reloadData(true)} />
 {/if}
 {#if trainingEval}
@@ -1192,10 +1214,15 @@
   .tchev { color: var(--on-surface-variant); font-size: 18px; margin-left: 8px; flex: 0 0 auto; }
   .ok { color: var(--ok); } .bad { color: var(--bad); }
   .sharedday { margin: 4px 0 10px; font-size: 18px; }
-  /* training evaluation shortcuts */
-  .evalrow { display: flex; gap: 8px; }
-  .evalbtn { flex: 1; background: var(--surface); border: 1px solid var(--outline); border-radius: 12px;
-    padding: 11px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
+  /* training hub — cards like the app's TrainingHub */
+  .hub { display: flex; flex-direction: column; gap: 8px; }
+  .hubcard { display: flex; flex-direction: column; gap: 2px; text-align: left; cursor: pointer;
+    background: var(--surface); border: 1px solid var(--outline); border-radius: 14px; padding: 14px 16px; }
+  .hubcard:active { background: var(--surface-variant); }
+  .hubcard .ht { font-size: 16px; font-weight: 800; color: var(--team-a); }
+  .hubcard.rec .ht { color: var(--on-surface); }
+  .hubcard .hd { font-size: 13px; color: var(--on-surface-variant); }
+  .recenth { margin: 14px 0 2px; font-size: 13px; color: var(--on-surface-variant); font-weight: 700; }
 
   /* clickable list cards — native bg_table_card: 10dp padding */
   .card-btn { width: 100%; text-align: left; color: inherit; font: inherit; font-weight: 400;
