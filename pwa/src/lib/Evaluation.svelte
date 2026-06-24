@@ -9,6 +9,7 @@
   import TrainingChart from './TrainingChart.svelte'
   import { dayKey, type TrainingItem, type MatchItem, type Ctx } from './data'
   import { encodeTraining } from './share'
+  import { epochDay } from './trainingmath'
 
   let { view, ctx, items, matches, persons, onClose, onChanged }:
     { view: 'day' | 'person'; ctx: Ctx; items: TrainingItem[]; matches: MatchItem[]
@@ -73,7 +74,9 @@
     // In a group, append the deep link to the shared day (mirrors the app's token).
     let url: string | undefined
     if (ctx && view === 'day') {
-      const dn = +day.slice(0, 4) * 10000 + +day.slice(4, 6) * 100 + +day.slice(6, 8)
+      // The token's day number is LocalDate.toEpochDay (20-bit) — not yyyymmdd.
+      const y = +day.slice(0, 4), mo = +day.slice(4, 6) - 1, d = +day.slice(6, 8)
+      const dn = epochDay(new Date(y, mo, d).getTime())
       url = `${location.origin}${location.pathname}#/t/${encodeTraining(ctx, dn)}`
     }
     try {

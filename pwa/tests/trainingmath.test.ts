@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
-import { tenths, fmtElapsed, signedElapsed, secondsLabel, timeBoundLabel, countdownColor, OVERTIME_MS } from '../src/lib/trainingmath'
+import { tenths, fmtElapsed, signedElapsed, secondsLabel, timeBoundLabel, countdownColor, epochDay, OVERTIME_MS } from '../src/lib/trainingmath'
+import { encodeTraining, decodeTraining } from '../src/lib/share'
 
 describe('tenths (round half-up, like the app)', () => {
   it('rounds to a tenth of a second', () => {
@@ -35,6 +36,23 @@ describe('timeBoundLabel', () => {
     expect(timeBoundLabel(null, 12)).toBe(' – bis 12s')
     expect(timeBoundLabel(null, null)).toBe('')
     expect(timeBoundLabel(8, null, 'en')).toBe(' – from 8s')
+  })
+})
+
+describe('epochDay (training share day number)', () => {
+  it('is days since 1970-01-01 for the local date', () => {
+    const at = new Date(2026, 5, 24, 18, 30).getTime() // 2026-06-24 local
+    expect(epochDay(at)).toBe(Math.floor(Date.UTC(2026, 5, 24) / 86400000))
+  })
+  it('is the same for any time on the same local day', () => {
+    expect(epochDay(new Date(2026, 5, 24, 0, 1).getTime()))
+      .toBe(epochDay(new Date(2026, 5, 24, 23, 59).getTime()))
+  })
+  it('fits the 20-bit training token and round-trips through the codec', () => {
+    const gid = 'b3f1c2d4-5e6a-47b8-9c0d-1e2f3a4b5c6d'
+    const dn = epochDay(new Date(2026, 5, 24).getTime())
+    expect(dn).toBeLessThan(1 << 20)
+    expect(decodeTraining(encodeTraining(gid, dn))?.dayNumber).toBe(dn)
   })
 })
 

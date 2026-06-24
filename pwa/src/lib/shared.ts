@@ -1,5 +1,7 @@
 import { supabase } from './supabase'
 import { groupHash, decodeMatch, decodeTraining } from './share'
+import { epochDay } from './trainingmath'
+import type { TrainingItem } from './data'
 
 export type SharedMatch = {
   homeName: string
@@ -60,6 +62,50 @@ export async function resolveSharedMatch(token: string): Promise<Resolution<Shar
         running: row.running ?? false
       }
     }
+  } catch {
+    return { status: 'error' }
+  }
+}
+
+export type SharedTraining = {
+  groupName: string
+  groupId: string
+  dayNumber: number       // LocalDate.toEpochDay of the shared day
+  items: TrainingItem[]
+}
+
+// Resolve a shared training day the same way as a match (client-only, no RPC): find
+// the signed-in user's group whose hash matches the token, then read that group's
+// training_entries (RLS already lets members read them) for the encoded day. The day
+// is matched on each entry's LOCAL epoch-day, so it lines up with the sender's.
+export async function resolveSharedTraining(token: string): Promise<Resolution<SharedTraining>> {
+  const dec = decodeTraining(token)
+  if (!dec) return { status: 'notfound' }
+  const { data: sess } = await supabase.auth.getSession()
+  if (!sess.session) return { status: 'auth' }
+  try {
+    const { data: groups, error: gErr } = await supabase.from('groups').select('id,name')
+    if (gErr) return { status: 'error' }
+    const g = (groups ?? []).find((x: { id: string }) => groupHash(x.id) === dec.groupHash)
+    if (!g) return { status: 'notfound' }
+    const { data: rows, error: tErr } = await supabase
+      .from('training_entries')
+      .select('kind,mode,data,occurred_at,deleted_at')
+      .eq('group_id', g.id)
+    if (tErr) return { status: 'error' }
+    type Row = {
+      kind: string; mode: string | null; deleted_at: string | null
+      data: { name?: string; ts?: number; elapsedMs?: number; limit?: number; success?: boolean } | null
+    }
+    const items: TrainingItem[] = (rows ?? [])
+      .filter((r: Row) => r.deleted_at == null && (r.kind === 'measure' || r.kind === 'measure_success' || r.kind === 'outcome'))
+      .map((r: Row) => ({
+        kind: r.kind as TrainingItem['kind'], mode: r.mode ?? '', name: r.data?.name ?? '',
+        at: r.data?.ts ?? 0, elapsedMs: r.data?.elapsedMs, limitSeconds: r.data?.limit, success: r.data?.success
+      }))
+      .filter((t: TrainingItem) => epochDay(t.at) === dec.dayNumber)
+      .sort((a: TrainingItem, b: TrainingItem) => b.at - a.at)
+    return { status: 'ok', data: { groupName: (g as { name?: string }).name ?? '', groupId: g.id, dayNumber: dec.dayNumber, items } }
   } catch {
     return { status: 'error' }
   }

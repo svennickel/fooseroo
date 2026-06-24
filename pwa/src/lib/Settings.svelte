@@ -5,15 +5,24 @@
   // feature on the web).
   import Terms from './Terms.svelte'
   import { getTheme, applyTheme, analyticsEnabled, setAnalytics, type ThemeMode } from './prefs'
+  import { rodMode, setRodMode, countdownDescending, setCountdownDescending, type RodMode } from './trainingprefs'
 
   let { onClose }: { onClose: () => void } = $props()
 
   let theme = $state<ThemeMode>(getTheme())
   let stats = $state(analyticsEnabled())
+  let rods = $state<RodMode>(rodMode())
+  let descending = $state(countdownDescending())
   let showTerms = $state(false)
 
   function pickTheme(m: ThemeMode) { theme = m; applyTheme(m) }
   function toggleStats() { stats = !stats; setAnalytics(stats) }
+  function pickRods(m: RodMode) { rods = m; setRodMode(m) }
+  function toggleDescending() { descending = !descending; setCountdownDescending(descending) }
+
+  const RODS: { v: RodMode; label: string }[] = [
+    { v: 'ITSF', label: 'ITSF (10s / 15s)' }, { v: 'Saarland', label: 'Saarland (20s)' }
+  ]
 
   const THEMES: { v: ThemeMode; label: string }[] = [
     { v: 'system', label: 'System' }, { v: 'light', label: 'Hell' }, { v: 'dark', label: 'Dunkel' }
@@ -40,6 +49,18 @@
             <button class="segbtn" class:active={theme === t.v} onclick={() => pickTheme(t.v)}>{t.label}</button>
           {/each}
         </div>
+
+        <div class="label">Training</div>
+        <div class="seg">
+          {#each RODS as r}
+            <button class="segbtn" class:active={rods === r.v} onclick={() => pickRods(r.v)}>{r.label}</button>
+          {/each}
+        </div>
+        <button class="switchrow" onclick={toggleDescending} aria-pressed={descending}>
+          <span>Restzeit herunterzählen statt verstrichener Zeit</span>
+          <span class="sw" class:on={descending}><span class="knob"></span></span>
+        </button>
+        <p class="note">Die Farbe (grün→amber→rot) folgt immer der Restzeit. Im Browser gespeichert.</p>
 
         <button class="switchrow" onclick={toggleStats} aria-pressed={stats}>
           <span>Unterstütze die Weiterentwicklung über anonyme Statistiken</span>

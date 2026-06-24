@@ -2,8 +2,8 @@
   import { onMount } from 'svelte'
   import { supabase } from './lib/supabase'
   import { requestCode, verifyCode } from './lib/auth'
-  import { parseRoute, resolveSharedMatch, joinWithCode, groupInvitePreview,
-    type SharedMatch, type Route, type InvitePreview } from './lib/shared'
+  import { parseRoute, resolveSharedMatch, resolveSharedTraining, joinWithCode, groupInvitePreview,
+    type SharedMatch, type SharedTraining, type Route, type InvitePreview } from './lib/shared'
   import { loadMatches, loadTraining, loadGroups, loadGroupRetention, loadCategories, loadPlayerPool, winnerSide, formatElapsed,
     type MatchItem, type TrainingItem, type Group, type Ctx, type Retention } from './lib/data'
   import { parseMatchState, progressRows, setsWon } from './lib/match'
@@ -21,7 +21,7 @@
   import TrainingEntry from './lib/TrainingEntry.svelte'
   import TrainingChart from './lib/TrainingChart.svelte'
   import Evaluation from './lib/Evaluation.svelte'
-  import { deleteTraining } from './lib/trainingstore'
+  import TrainingRowMenu from './lib/TrainingRowMenu.svelte'
   import { isIOS } from './lib/platform'
   import { flip } from 'svelte/animate'
   import { fade } from 'svelte/transition'
@@ -40,7 +40,7 @@
   let showPersonPicker = $state(false)
   let trainingEntry = $state(false)
   let trainingEval = $state<'day' | 'person' | null>(null)
-  let deletingTraining = $state<TrainingItem | null>(null)
+  let editingRow = $state<TrainingItem | null>(null)
   let signedIn = $state(false)
   // Web access requires entitlement: a paid Cloud-&-Sync plan (is_entitled) OR
   // membership in at least one training group. null = not yet checked.
@@ -51,12 +51,6 @@
   let matchEditor = $state<{ mode: 'new' | 'edit'; initial: MatchItem | null } | null>(null)
   const defaultCategory = (typeof navigator !== 'undefined' && navigator.language?.startsWith('en')) ? 'Free play' : 'Freies Spiel'
   function onMatchSaved() { matchEditor = null; reloadData(true) }
-  async function doDeleteTraining() {
-    const t = deletingTraining; if (!t) return
-    deletingTraining = null
-    try { await deleteTraining(ctx, t) } catch { /* best effort */ }
-    reloadData(true)
-  }
   let ready = $state(false)
 
   // Auth form
@@ -69,6 +63,8 @@
   // Shared content
   let shared = $state<SharedMatch | null>(null)
   let sharedState = $state<'idle' | 'loading' | 'notfound' | 'error'>('idle')
+  let sharedTraining = $state<SharedTraining | null>(null)
+  let sharedTrainingState = $state<'idle' | 'loading' | 'notfound' | 'error'>('idle')
 
   // Own (personal) matches list
   let matches = $state<MatchItem[]>([])
@@ -152,7 +148,7 @@
     try { return JSON.parse(localStorage.getItem(LS) ?? '{}') } catch { return {} }
   }
 
-  const kindLabel = (k: TrainingItem['kind']) =>
+  const kindLabel = (k: string) =>
     k === 'measure' ? 'Zeitmessung' : k === 'measure_success' ? 'Zeit & Erfolg' : 'Erfolgsquote'
 
   // Match detail / live view
@@ -502,6 +498,13 @@
         if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
         reloadData(true)
       } else sharedState = r.status === 'auth' ? 'idle' : r.status
+    } else if (route.type === 'training' && signedIn) {
+      sharedTrainingState = 'loading'; sharedTraining = null
+      const r = await resolveSharedTraining(route.token)
+      if (r.status === 'ok') {
+        sharedTraining = r.data; sharedTrainingState = 'idle'
+        if (groups.length === 0) loadGroups().then((g) => { groups = g }).catch(() => {})
+      } else sharedTrainingState = r.status === 'auth' ? 'idle' : r.status
     } else if (route.type === 'home' && signedIn) {
       const ok = await checkEntitlement()
       if (ok) await reloadData()
@@ -739,8 +742,28 @@
     {/if}
 
   {:else if route.type === 'training'}
-    <p>Geteilte Trainings-Ansicht folgt in Kürze.</p>
-    <a class="ghost-link" href="#/">Zur Übersicht</a>
+    <!-- Shared training day deep link -->
+    {#if needsAuthForShare}
+      <p>Eine geteilte Trainings-Auswertung wurde mit dir geteilt. Melde dich an, um sie anzusehen.</p>
+      {@render authForm()}
+    {:else if sharedTrainingState === 'loading'}
+      <p class="hint">Geteilte Trainings-Auswertung wird geladen…</p>
+    {:else if sharedTraining}
+      <div class="meta">{sharedTraining.groupName} · geteilte Tagesauswertung</div>
+      <h3 class="sharedday">{new Date(sharedTraining.dayNumber * 86400000).toLocaleDateString('de-DE', { timeZone: 'UTC', weekday: 'long', day: '2-digit', month: '2-digit', year: 'numeric' })}</h3>
+      {#if sharedTraining.items.length === 0}
+        <p class="hint">An diesem Tag wurden in dieser Gruppe keine Trainingseinträge erfasst.</p>
+      {:else}
+        <TrainingChart items={sharedTraining.items} ctx={sharedTraining.groupId} />
+      {/if}
+      <button class="newmatch" onclick={() => { ctx = sharedTraining!.groupId; tab = 'training'; route = { type: 'home' }; location.hash = ''; reloadData() }}>In der Gruppe öffnen</button>
+      <a class="ghost-link" href="#/">Zur Übersicht</a>
+    {:else if sharedTrainingState === 'notfound'}
+      <p>Diese geteilte Auswertung wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe.</p>
+      <a class="ghost-link" href="#/">Zur Übersicht</a>
+    {:else}
+      <p class="err">Die Auswertung konnte nicht geladen werden. Bitte später erneut versuchen.</p>
+    {/if}
 
   {:else if route.type === 'join'}
     <h2 class="jointitle">Gruppe beitreten</h2>
@@ -895,20 +918,22 @@
         <TrainingChart items={shownTraining} {ctx} />
         <ul class="list">
           {#each shownTraining.slice(0, 50) as t}
-            <li class="card trow">
-              <div>
-                <strong>{t.name || '—'}</strong>
-                <span class="meta">{kindLabel(t.kind)}{#if t.mode} · {t.mode}{/if}</span>
-              </div>
-              <div class="tval">
-                {#if t.kind === 'outcome'}
-                  <span class={t.success ? 'ok' : 'bad'}>{t.success ? '✓' : '✗'}</span>
-                {:else}
-                  {#if t.elapsedMs !== undefined}{formatElapsed(t.elapsedMs)}{/if}
-                  {#if t.kind === 'measure_success'}<span class={t.success ? 'ok' : 'bad'}>{t.success ? ' ✓' : ' ✗'}</span>{/if}
-                {/if}
-              </div>
-              <button class="tdel" aria-label="Eintrag löschen" onclick={() => (deletingTraining = t)}>✕</button>
+            <li class="card">
+              <button class="trow trowbtn" onclick={() => (editingRow = t)}>
+                <span class="tleft">
+                  <strong>{t.name || '—'}</strong>
+                  <span class="meta">{kindLabel(t.kind)}{#if t.mode} · {t.mode}{/if}</span>
+                </span>
+                <span class="tval">
+                  {#if t.kind === 'outcome'}
+                    <span class={t.success ? 'ok' : 'bad'}>{t.success ? '✓' : '✗'}</span>
+                  {:else}
+                    {#if t.elapsedMs !== undefined}{formatElapsed(t.elapsedMs)}{/if}
+                    {#if t.kind === 'measure_success'}<span class={t.success ? 'ok' : 'bad'}>{t.success ? ' ✓' : ' ✗'}</span>{/if}
+                  {/if}
+                </span>
+                <span class="tchev">›</span>
+              </button>
             </li>
           {/each}
         </ul>
@@ -953,17 +978,10 @@
               persons={[...new Set([...playerPool, ...trainingNames])]}
               onClose={() => (trainingEval = null)} onChanged={() => reloadData(true)} />
 {/if}
-{#if deletingTraining}
-  <div class="overlay confirm" role="presentation" onclick={(e) => { if (e.target === e.currentTarget) deletingTraining = null }}>
-    <div class="confirmsheet">
-      <strong>Eintrag löschen?</strong>
-      <p>{deletingTraining.name || '—'} · {kindLabel(deletingTraining.kind)}{#if deletingTraining.mode} · {deletingTraining.mode}{/if}</p>
-      <div class="confirmbtns">
-        <button class="ghost small" onclick={() => (deletingTraining = null)}>Abbrechen</button>
-        <button class="danger" onclick={doDeleteTraining}>Löschen</button>
-      </div>
-    </div>
-  </div>
+{#if editingRow}
+  <TrainingRowMenu {ctx} entry={editingRow} {kindLabel}
+                   pool={[...new Set([...playerPool, ...trainingNames])]}
+                   onClose={() => (editingRow = null)} onChanged={() => reloadData(true)} />
 {/if}
 
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
@@ -1167,25 +1185,17 @@
   .picker .cnt { color: var(--on-surface-variant); font-size: 13px; }
   .trow { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 16px; }
   .trow .meta { margin-left: 8px; }
+  .trowbtn { width: 100%; background: transparent; border: 0; color: inherit; font: inherit; cursor: pointer; text-align: left; }
+  .trowbtn:active { background: var(--surface-variant); }
+  .tleft { display: flex; align-items: baseline; min-width: 0; }
   .tval { font-weight: 700; white-space: nowrap; margin-left: auto; }
+  .tchev { color: var(--on-surface-variant); font-size: 18px; margin-left: 8px; flex: 0 0 auto; }
   .ok { color: var(--ok); } .bad { color: var(--bad); }
-  .tdel { background: transparent; border: 0; color: var(--on-surface-variant); font-size: 15px;
-    cursor: pointer; padding: 4px 6px; line-height: 1; flex: 0 0 auto; }
-  .tdel:hover { color: var(--bad); }
+  .sharedday { margin: 4px 0 10px; font-size: 18px; }
   /* training evaluation shortcuts */
   .evalrow { display: flex; gap: 8px; }
   .evalbtn { flex: 1; background: var(--surface); border: 1px solid var(--outline); border-radius: 12px;
     padding: 11px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
-  /* delete confirm dialog */
-  .overlay.confirm { position: fixed; inset: 0; z-index: 985; background: rgba(0,0,0,.5);
-    display: flex; align-items: center; justify-content: center; padding: 20px; }
-  .confirmsheet { width: 100%; max-width: 360px; background: var(--bg); border-radius: 16px; padding: 18px;
-    display: flex; flex-direction: column; gap: 10px; }
-  .confirmsheet strong { font-size: 16px; }
-  .confirmsheet p { margin: 0; font-size: 14px; color: var(--on-surface-variant); }
-  .confirmbtns { display: flex; gap: 8px; justify-content: flex-end; margin-top: 4px; }
-  .danger { background: var(--bad); color: #fff; border: 0; border-radius: 10px;
-    padding: 9px 16px; font-size: 14px; font-weight: 700; cursor: pointer; }
 
   /* clickable list cards — native bg_table_card: 10dp padding */
   .card-btn { width: 100%; text-align: left; color: inherit; font: inherit; font-weight: 400;

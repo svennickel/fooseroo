@@ -64,6 +64,14 @@ function blend(a: string, b: string, t: number): string {
   return `#${((1 << 24) | (r << 16) | (g << 8) | bl).toString(16).slice(1)}`
 }
 
+// Days since 1970-01-01 for the LOCAL calendar date of `at` — matches Java
+// LocalDate.toEpochDay(), and is the 20-bit "day number" packed into a training
+// share token (yyyymmdd would overflow 20 bits; epoch days stay well under it).
+export function epochDay(at: number): number {
+  const d = new Date(at)
+  return Math.floor(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate()) / 86400000)
+}
+
 // remainingMs = limitMs − elapsedMs (can be negative). limitMs = rod * 1000.
 export function countdownColor(remainingMs: number, limitMs: number): string {
   const stops: [number, string][] = [

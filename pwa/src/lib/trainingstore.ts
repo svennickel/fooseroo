@@ -90,3 +90,25 @@ export async function retagTraining(ctx: Ctx, e: {
     .update({ mode: newMode.trim() || null, data: { ...d, mode: newMode } }).eq('id', id)
   if (error) throw error
 }
+
+export type EditableEntry = {
+  kind: string; mode: string; name: string; at: number
+  elapsedMs?: number; limitSeconds?: number; success?: boolean
+}
+
+// Change an entry's person. The deterministic id INCLUDES the name, so this writes a
+// new row (same ts/time/limit/success/mode) and soft-deletes the old one — exactly
+// what the app's "Person ändern" does. New row first, so nothing is lost on a flake.
+export async function changeTrainingPerson(ctx: Ctx, e: EditableEntry, newName: string): Promise<void> {
+  const name = newName.trim()
+  if (name === e.name) return
+  if (e.kind === 'outcome') {
+    await saveOutcome(ctx, { name, mode: e.mode, ts: e.at, success: !!e.success })
+  } else {
+    await saveMeasure(ctx, {
+      name, mode: e.mode, elapsedMs: e.elapsedMs ?? 0, limit: e.limitSeconds ?? 0, ts: e.at,
+      success: e.kind === 'measure' ? null : !!e.success
+    })
+  }
+  await deleteTraining(ctx, e)
+}
