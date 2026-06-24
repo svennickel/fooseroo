@@ -9,7 +9,8 @@
     "build:fast": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "deploy": "bash ../deploy.sh"
   },
   "devDependencies": {
     "@sveltejs/vite-plugin-svelte": "^4.0.0",

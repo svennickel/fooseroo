@@ -640,7 +640,7 @@
   <div class="topbar">
     <h1><img class="logo" src="icon.png" alt="" /> <span class="brand">Fooseroo</span> <span class="tag">Web</span></h1>
     <div class="topright">
-      {#if signedIn && entitled}
+      {#if signedIn}
         <div class="ctxwrap">
           <button class="ctxchip" aria-haspopup="menu" onclick={() => (showCtxMenu = !showCtxMenu)}>
             {ctxLabel} <span class="caret">▾</span>
@@ -810,18 +810,9 @@
     {/if}
 
   {:else if signedIn}
-    {#if entitled === null}
-      <p class="hint">{t('common.loading')}</p>
-    {:else if !entitled}
-      <div class="card gateinfo">
-        <p><strong>{t('gate.title')}</strong> {t('gate.body1')}</p>
-        <p class="hint">{t('gate.body2')}</p>
-        <div class="gatebtns">
-          <button onclick={() => { route = { type: 'join', code: '' }; joinCode = ''; joinError = '' }}>{t('join.title')}</button>
-          <a class="ghost-link" href="https://play.google.com/store/apps/details?id=de.snickel.fooser" target="_blank" rel="noopener">{t('gate.android')}</a>
-        </div>
-      </div>
-    {:else}
+    <!-- Backup & Sync is open to everyone now (migration 0019): any signed-in account
+         gets the full personal app. Joining a training group stays via Account → Beitreten;
+         creating/owning a group remains tester-gated (is_entitled) and is Android-only. -->
     {#if tab === 'matches'}
     <div class="filters">
       <div class="fchipwrap">
@@ -916,7 +907,6 @@
         <button class="hubcard rec" onclick={() => openEntry('measure_success')}>
           <span class="ht">{t('hub.timesuccess')}</span><span class="hd">{t('hub.timesuccess_desc')}</span></button>
       </div>
-    {/if}
     {/if}
 
   {:else}
@@ -1107,9 +1097,7 @@
     color: var(--on-surface); }
   .sets.running { color: var(--team-a); }
   .rowbtns { display: flex; gap: 8px; flex-shrink: 0; }
-  .gateinfo p { margin: 0 0 8px; }
   .invite p { margin: 0 0 8px; } .invite p:last-child { margin-bottom: 0; }
-  .gatebtns { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-top: 6px; }
   .jointitle { font-size: 20px; margin: 4px 0 2px; }
   /* retention notice: subtle, but clearly visible (privacy assurance) */
   .retention { color: var(--team-a); font-size: 13px; background: var(--surface);
