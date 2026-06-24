@@ -49,3 +49,44 @@ export async function saveOutcome(ctx: Ctx, o: {
     data: { name: o.name, ts: o.ts, success: o.success, mode: o.mode },
   })
 }
+
+// The deterministic id of an existing entry, recomputed from its fields exactly as
+// save*/CloudTrainingSync do (the id excludes `mode`, so changing the category keeps
+// the same row). Returns null if the fields needed for this kind are missing.
+export function entryId(ctx: Ctx, e: {
+  kind: string; name: string; at: number; elapsedMs?: number; limitSeconds?: number; success?: boolean
+}, scope: string): string | null {
+  if (e.kind === 'outcome') return nameUUIDv3(`train:${scope}:outcome:${e.at}:${e.name}:${!!e.success}`)
+  if (e.elapsedMs == null || e.limitSeconds == null) return null
+  const succPart = e.kind === 'measure' ? 'null' : String(!!e.success)
+  return nameUUIDv3(`train:${scope}:${e.kind}:${e.at}:${e.name}:${e.elapsedMs}:${e.limitSeconds}:${succPart}`)
+}
+
+// Soft-delete an entry (set deleted_at; the app's pull then drops it) — mirrors
+// CloudTrainingSync.deleteMeasure/deleteOutcome. RLS forbids a hard delete.
+export async function deleteTraining(ctx: Ctx, e: {
+  kind: string; name: string; at: number; elapsedMs?: number; limitSeconds?: number; success?: boolean
+}): Promise<void> {
+  const { scope } = await uidScope(ctx)
+  const id = entryId(ctx, e, scope)
+  if (!id) return
+  const { error } = await supabase.from('training_entries')
+    .update({ deleted_at: new Date().toISOString() }).eq('id', id)
+  if (error) throw error
+}
+
+// Change an entry's category (mode). The id excludes mode, so this is an in-place
+// update of the `mode` column and data.mode — no id change, byte-compatible.
+export async function retagTraining(ctx: Ctx, e: {
+  kind: string; name: string; at: number; elapsedMs?: number; limitSeconds?: number; success?: boolean
+}, newMode: string): Promise<void> {
+  const { scope } = await uidScope(ctx)
+  const id = entryId(ctx, e, scope)
+  if (!id) return
+  // Fetch the current data jsonb so we keep its other fields, then rewrite mode.
+  const { data } = await supabase.from('training_entries').select('data').eq('id', id).maybeSingle()
+  const d = ((data as { data?: Record<string, unknown> } | null)?.data) ?? {}
+  const { error } = await supabase.from('training_entries')
+    .update({ mode: newMode.trim() || null, data: { ...d, mode: newMode } }).eq('id', id)
+  if (error) throw error
+}

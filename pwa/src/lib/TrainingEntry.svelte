@@ -1,10 +1,17 @@
 <script lang="ts">
-  // Training capture (web port of the app's Training hub modes):
-  //   Zeitmessung (measure) · Zeit & Erfolg (measure_success) · Erfolgsquote (outcome)
-  // with a count-up timer + person/category, writing byte-compatible training_entries.
+  // Training capture — web port of the app's recording screens (TimeMeasure /
+  // TimeSuccess / Outcome). A COUNT-DOWN measurement from the rod limit (10s/15s,
+  // ITSF; Saarland 20/20) with the app's colour gradient (neutral→green→amber→red)
+  // and a 10s overtime buffer; for "Zeit & Erfolg" the running buttons become ✓/✗.
+  // Per category: offered buttons, hidden running counter and a target time window.
+  // Writes byte-compatible training_entries (saveMeasure/saveOutcome).
   import { saveMeasure, saveOutcome } from './trainingstore'
-  import { loadTrainingModes, saveTrainingModes, addPlayersToPool, dayKey, type Ctx, type TrainingItem } from './data'
+  import { loadTrainingModes, saveTrainingModes, loadTrainingWindows, addPlayersToPool,
+    dayKey, type Ctx, type TrainingItem, type TimeWindow } from './data'
+  import { signedElapsed, countdownColor, timeBoundLabel, OVERTIME_MS } from './trainingmath'
+  import { rodLimits, buttonModeOf, counterHiddenOf, countdownDescending } from './trainingprefs'
   import ChoicePicker from './ChoicePicker.svelte'
+  import TrainingCategoryEditor from './TrainingCategoryEditor.svelte'
 
   let { ctx, pool, peerTraining, onClose, onSaved }:
     { ctx: Ctx; pool: string[]; peerTraining: TrainingItem[]
@@ -14,16 +21,23 @@
   let kind = $state<Kind>('measure')
   let name = $state('')
   let mode = $state('')
-  // Player pool (chips, like Matches) + per-kind synced mode list (chips, like categories).
   let poolState = $state<string[]>([...pool])
   let modes = $state<string[]>([])
+  let windows = $state<Record<string, TimeWindow>>({})
   let picking = $state<'name' | 'mode' | null>(null)
-  $effect(() => { loadTrainingModes(ctx, kind).then((m) => { modes = m }).catch(() => {}) })
+  let editing = $state<string | null>(null)   // category being edited
 
-  // Today's counts (this kind) for the chip badges — people and modes already trained.
-  const today = (() => { const d = new Date(); const p = (n: number) => String(n).padStart(2, '0'); return `${d.getFullYear()}${p(d.getMonth() + 1)}${p(d.getDate())}` })()
+  // Reload the per-kind mode list + windows when the kind changes.
+  $effect(() => {
+    const k = kind
+    loadTrainingModes(ctx, k).then((m) => { if (k === kind) modes = m }).catch(() => {})
+    loadTrainingWindows(ctx, k).then((w) => { if (k === kind) windows = w }).catch(() => {})
+  })
+
+  const today = dayKey(Date.now())
   const nameCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.name) m[t.name] = (m[t.name] ?? 0) + 1; return m })
   const modeCounts = $derived.by(() => { const m: Record<string, number> = {}; for (const t of peerTraining) if (t.kind === kind && dayKey(t.at) === today && t.mode) m[t.mode] = (m[t.mode] ?? 0) + 1; return m })
+  const modeSuffixes = $derived.by(() => { const m: Record<string, string> = {}; for (const k of modes) { const s = timeBoundLabel(windows[k]?.fromSeconds, windows[k]?.toSeconds); if (s) m[k] = s.replace(/^ – /, '') } return m })
 
   async function addName(n: string) {
     if (!poolState.includes(n)) poolState = [...poolState, n]
@@ -32,54 +46,115 @@
   async function addMode(m: string) {
     if (!modes.includes(m)) { modes = [...modes, m]; try { await saveTrainingModes(ctx, kind, modes) } catch { /* keep local */ } }
   }
-  let limit = $state('')                  // optional time limit in seconds
+
+  // ---- Countdown engine (mirrors TimeMeasureFragment) -------------------------
+  const { short, long } = rodLimits()
+  const btnMode = $derived(buttonModeOf(ctx, kind, mode))
+  const hidden = $derived(counterHiddenOf(ctx, kind, mode))
+  const win = $derived<TimeWindow | undefined>(windows[mode])
+
+  let running = $state(false)
+  let rod = $state(0)              // seconds of the active rod
+  let elapsedMs = $state(0)
+  let lastFoul = $state(false)
+  let hasResult = $state(false)    // a completed measurement is shown
+  let gaveUp = $state(false)       // overtime expired without a stop
+  let note = $state('')
   let busy = $state(false)
   let err = $state('')
-  let note = $state('')                   // brief confirmation (outcome tally etc.)
-
-  // Count-up timer.
-  let elapsedMs = $state(0)
-  let timerOn = $state(false)
   let startedAt = 0
   let tick: ReturnType<typeof setInterval> | null = null
-  function startTimer() { startedAt = Date.now() - elapsedMs; timerOn = true; tick = setInterval(() => { elapsedMs = Date.now() - startedAt }, 50) }
-  function stopTimer() { timerOn = false; if (tick) { clearInterval(tick); tick = null } }
-  function resetTimer() { stopTimer(); elapsedMs = 0 }
-  const elapsedLabel = $derived(`${(elapsedMs / 1000).toFixed(1)}s`)
 
-  async function run(fn: () => Promise<void>, after: () => void) {
+  const limitMs = $derived(rod * 1000)
+  const remainingMs = $derived(limitMs - elapsedMs)
+
+  function clearTick() { if (tick) { clearInterval(tick); tick = null } }
+  function reset() { clearTick(); running = false; elapsedMs = 0; hasResult = false; gaveUp = false; note = '' }
+
+  function start(rodSeconds: number) {
+    clearTick()
+    rod = rodSeconds
+    elapsedMs = 0; hasResult = false; gaveUp = false; note = ''
+    startedAt = Date.now()
+    running = true
+    tick = setInterval(() => {
+      elapsedMs = Date.now() - startedAt
+      if (elapsedMs >= rodSeconds * 1000 + OVERTIME_MS) { giveUp() }
+    }, 30)
+  }
+  function giveUp() { clearTick(); running = false; gaveUp = true; hasResult = false }
+
+  function stop(success: boolean | null) {
+    if (!running) return
+    clearTick()
+    running = false
+    const ms = Date.now() - startedAt
+    elapsedMs = ms
+    lastFoul = ms > rod * 1000
+    hasResult = true
+    persist(ms, rod, success)
+  }
+
+  async function persist(ms: number, rodSeconds: number, success: boolean | null) {
     if (busy) return
     busy = true; err = ''
-    try { await fn(); onSaved(); after() } catch { err = 'Speichern fehlgeschlagen.' } finally { busy = false }
+    try {
+      await saveMeasure(ctx, { name: name.trim(), mode: mode.trim(), elapsedMs: ms, limit: rodSeconds, ts: Date.now(), success })
+      note = success === null ? '✓ gespeichert' : success ? '✓ Erfolg gespeichert' : '✗ Fehler gespeichert'
+      setTimeout(() => (note = ''), 1600)
+      onSaved()
+    } catch { err = 'Speichern fehlgeschlagen.' } finally { busy = false }
   }
 
-  function saveTimed(success: boolean | null) {
-    stopTimer()
-    const lim = Math.max(0, parseInt(limit, 10) || 0)
-    run(() => saveMeasure(ctx, { name: name.trim(), mode: mode.trim(), elapsedMs, limit: lim, ts: Date.now(), success }),
-      () => onClose())
-  }
   function saveOut(success: boolean) {
-    run(() => saveOutcome(ctx, { name: name.trim(), mode: mode.trim(), ts: Date.now(), success }),
-      () => { note = success ? '✓ Treffer gespeichert' : '✗ Fehler gespeichert'; setTimeout(() => (note = ''), 1500) })
+    if (busy) return
+    busy = true; err = ''
+    saveOutcome(ctx, { name: name.trim(), mode: mode.trim(), ts: Date.now(), success })
+      .then(() => { note = success ? '✓ Treffer gespeichert' : '✗ Fehler gespeichert'; setTimeout(() => (note = ''), 1600); onSaved() })
+      .catch(() => { err = 'Speichern fehlgeschlagen.' })
+      .finally(() => { busy = false })
   }
+
+  // The big display: text + signal colour, mirroring timerView*.
+  const display = $derived.by(() => {
+    if (running) {
+      if (hidden) return { text: 'läuft …', color: '#43A047' }
+      const shown = countdownDescending() ? remainingMs : elapsedMs
+      return { text: signedElapsed(shown), color: countdownColor(remainingMs, limitMs) }
+    }
+    if (gaveUp) return { text: 'Zeit!', color: '#E53935' }
+    if (hasResult) return { text: signedElapsed(elapsedMs), color: lastFoul ? '#E53935' : '#43A047' }
+    return { text: 'Start', color: '#43A047' }
+  })
+
+  const showShort = $derived(btnMode !== 'LONG')
+  const showLong = $derived(btnMode !== 'SHORT')
+
+  function reloadCat() { loadTrainingWindows(ctx, kind).then((w) => { windows = w }).catch(() => {}) }
 </script>
 
 <div class="overlay" role="presentation">
   <div class="sheet">
-    <div class="head"><strong>Neuer Trainingseintrag</strong><button class="ghost small" onclick={() => { resetTimer(); onClose() }}>Schließen</button></div>
+    <div class="head"><strong>Neuer Trainingseintrag</strong>
+      <button class="ghost small" onclick={() => { reset(); onClose() }}>Schließen</button></div>
 
     <div class="kinds">
-      <button class:on={kind === 'measure'} onclick={() => { kind = 'measure'; resetTimer() }}>Zeitmessung</button>
-      <button class:on={kind === 'measure_success'} onclick={() => { kind = 'measure_success'; resetTimer() }}>Zeit &amp; Erfolg</button>
-      <button class:on={kind === 'outcome'} onclick={() => { kind = 'outcome' }}>Erfolgsquote</button>
+      <button class:on={kind === 'measure'} onclick={() => { kind = 'measure'; reset() }}>Zeitmessung</button>
+      <button class:on={kind === 'measure_success'} onclick={() => { kind = 'measure_success'; reset() }}>Zeit &amp; Erfolg</button>
+      <button class:on={kind === 'outcome'} onclick={() => { kind = 'outcome'; reset() }}>Erfolgsquote</button>
     </div>
 
-    <!-- Player + category via chip pickers (like Matches), backed by the synced pool/mode lists. -->
     <div class="pick"><span class="plabel">Name</span>
       <button class="pchip" class:set={!!name} onclick={() => (picking = 'name')}>{name || 'Person wählen'}</button></div>
     <div class="pick"><span class="plabel">Kategorie</span>
-      <button class="pchip" class:set={!!mode} onclick={() => (picking = 'mode')}>{mode || 'Kategorie wählen'}</button></div>
+      <div class="catrow">
+        <button class="pchip" class:set={!!mode} onclick={() => (picking = 'mode')}>{mode || 'Kategorie wählen'}</button>
+        {#if mode}<button class="edit" aria-label="Kategorie bearbeiten" onclick={() => (editing = mode)}>✎</button>{/if}
+      </div>
+    </div>
+    {#if mode && timeBoundLabel(win?.fromSeconds, win?.toSeconds)}
+      <p class="winlbl">Zeitfenster{timeBoundLabel(win?.fromSeconds, win?.toSeconds)}</p>
+    {/if}
 
     {#if kind === 'outcome'}
       <div class="outrow">
@@ -88,24 +163,27 @@
       </div>
       {#if note}<p class="note">{note}</p>{/if}
     {:else}
-      <div class="timer">{elapsedLabel}</div>
-      <div class="trow">
-        {#if !timerOn}
-          <button class="big" onclick={startTimer}>{elapsedMs > 0 ? 'Weiter' : 'Start'}</button>
+      <!-- Big countdown display (tap to stop a running measurement). -->
+      <button class="countdown" style="background:{display.color}"
+              onclick={() => { if (running && kind === 'measure') stop(null) }}>{display.text}</button>
+
+      {#if running}
+        {#if kind === 'measure_success'}
+          <div class="outrow">
+            <button class="big ok" onclick={() => stop(true)}>✓</button>
+            <button class="big bad" onclick={() => stop(false)}>✗</button>
+          </div>
         {:else}
-          <button class="big" onclick={stopTimer}>Stop</button>
+          <button class="big stop" onclick={() => stop(null)}>Stopp</button>
         {/if}
-        <button class="ghost small" onclick={resetTimer} disabled={elapsedMs === 0}>Zurücksetzen</button>
-      </div>
-      <label class="fld">Zeitlimit (Sek., optional)<input inputmode="numeric" bind:value={limit} placeholder="—" /></label>
-      {#if kind === 'measure'}
-        <button class="primary" onclick={() => saveTimed(null)} disabled={busy || elapsedMs === 0}>Speichern</button>
       {:else}
-        <div class="outrow">
-          <button class="primary ok" onclick={() => saveTimed(true)} disabled={busy || elapsedMs === 0}>Speichern: ✓ Erfolg</button>
-          <button class="primary bad" onclick={() => saveTimed(false)} disabled={busy || elapsedMs === 0}>Speichern: ✗</button>
+        <div class="rods">
+          {#if showShort}<button class="big" onclick={() => start(short)}>{short}s</button>{/if}
+          {#if showLong}<button class="big" onclick={() => start(long)}>{long}s</button>{/if}
         </div>
+        <p class="hint">Knopf startet die {kind === 'measure_success' ? 'Messung – dann ✓/✗ zum Stoppen' : 'Messung – Anzeige oder „Stopp“ beendet sie'}.</p>
       {/if}
+      {#if note}<p class="note">{note}</p>{/if}
     {/if}
     {#if err}<p class="err">{err}</p>{/if}
 
@@ -115,8 +193,14 @@
         onPicked={(names) => { name = names[0] ?? name }} onClose={() => (picking = null)} />
     {:else if picking === 'mode'}
       <ChoicePicker title="Kategorie" items={modes} selected={mode ? [mode] : []} maxSelection={1}
-        counts={modeCounts} onAdd={(m) => addMode(m)}
+        counts={modeCounts} suffixes={modeSuffixes} onAdd={(m) => addMode(m)}
+        onEdit={(m) => { picking = null; editing = m }}
         onPicked={(names) => { mode = names[0] ?? mode }} onClose={() => (picking = null)} />
+    {/if}
+
+    {#if editing}
+      <TrainingCategoryEditor {ctx} {kind} mode={editing} initialWindow={windows[editing]}
+        onSaved={reloadCat} onClose={() => (editing = null)} />
     {/if}
   </div>
 </div>
@@ -132,31 +216,34 @@
   .kinds { display: flex; gap: 6px; }
   .kinds button { flex: 1; background: var(--surface); border: 1px solid var(--outline); border-radius: 10px;
     padding: 9px 6px; font-size: 13px; font-weight: 600; color: var(--on-surface); cursor: pointer; }
-  /* iOS optic: segmented kind selector as fully-rounded pills */
   :global(html.ios) .kinds button { border-radius: 999px; }
   .kinds button.on { background: color-mix(in srgb, var(--team-a) 16%, transparent);
     border-color: var(--team-a); color: var(--team-a); }
-  .fld { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--on-surface-variant); }
   .pick { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
   .plabel { font-size: 13px; color: var(--on-surface-variant); }
+  .catrow { display: flex; align-items: center; gap: 6px; max-width: 74%; }
   .pchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
-    padding: 9px 16px; font-size: 14px; color: var(--on-surface-variant); cursor: pointer; max-width: 70%;
+    padding: 9px 16px; font-size: 14px; color: var(--on-surface-variant); cursor: pointer;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .pick > .pchip { max-width: 70%; }
   .pchip.set { color: var(--on-surface); font-weight: 700; border-color: var(--team-a); }
-  input { padding: 12px 14px; border-radius: 10px; border: 1px solid var(--outline);
-    background: var(--surface); color: var(--on-surface); font-size: 16px; }
-  .timer { font-size: 44px; font-weight: 800; text-align: center; line-height: 1; }
-  .trow { display: flex; gap: 8px; align-items: center; }
+  .edit { background: transparent; border: 1px solid var(--outline); border-radius: 999px;
+    width: 36px; height: 36px; font-size: 14px; color: var(--on-surface-variant); cursor: pointer; flex: 0 0 auto; }
+  .winlbl { margin: -4px 0 0; font-size: 12px; color: var(--on-surface-variant); }
+  /* The big signal display: white text on the live colour, like the app's box. */
+  .countdown { border: 0; border-radius: 16px; padding: 22px 0; font-size: 52px; font-weight: 800;
+    line-height: 1; color: #fff; text-align: center; cursor: pointer; letter-spacing: .5px;
+    text-shadow: 0 1px 2px rgba(0,0,0,.25); transition: background .12s linear; }
+  .rods { display: flex; gap: 8px; }
   .outrow { display: flex; gap: 8px; }
-  .big { flex: 1; padding: 18px 0; font-size: 18px; font-weight: 800; border: 0; border-radius: 14px;
+  .big { flex: 1; padding: 18px 0; font-size: 22px; font-weight: 800; border: 0; border-radius: 14px;
     background: var(--team-a); color: var(--on-accent); cursor: pointer; }
   .big.ok { background: var(--ok); } .big.bad { background: var(--bad); }
-  .primary { flex: 1; background: var(--team-a); color: var(--on-accent); border: 0; border-radius: 12px;
-    padding: 13px 14px; font-size: 15px; font-weight: 800; cursor: pointer; }
-  .primary.ok { background: var(--ok); } .primary.bad { background: var(--bad); flex: 0 0 auto; padding: 13px 18px; }
+  .big.stop { background: var(--on-surface-variant); }
+  .hint { font-size: 12px; color: var(--on-surface-variant); margin: 0; text-align: center; }
   .ghost.small { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 10px; padding: 9px 12px; font-size: 13px; font-weight: 600; cursor: pointer; }
-  .big:disabled, .primary:disabled, .ghost.small:disabled { opacity: .5; cursor: default; }
+  .big:disabled { opacity: .5; cursor: default; }
   .note { color: var(--ok); font-weight: 700; text-align: center; margin: 0; }
   .err { color: var(--bad); font-size: 13px; margin: 0; }
 </style>

@@ -146,6 +146,61 @@ export async function saveTrainingModes(ctx: Ctx, kind: string, list: string[]):
   if (error) throw error
 }
 
+// Per-mode target time window (seconds), the app's TimeWindow. Synced byte-compat
+// with CloudConfig's MAP_KEYS: a JSON object { "<mode>": { fromSeconds, toSeconds } }.
+// Only the two timed kinds have windows: Zeitmessung → time_measure_windows,
+// Zeit & Erfolg → timed_outcome_windows. (Erfolgsquote has a % target instead,
+// which the app keeps device-local — see trainingprefs.ts.)
+export type TimeWindow = { fromSeconds?: number | null; toSeconds?: number | null }
+const TRAINING_WINDOW_KEY: Record<string, string> = {
+  measure: 'time_measure_windows',
+  measure_success: 'timed_outcome_windows'
+}
+
+export async function loadTrainingWindows(ctx: Ctx, kind: string): Promise<Record<string, TimeWindow>> {
+  const base = TRAINING_WINDOW_KEY[kind]
+  if (!base) return {}
+  try {
+    const key = `${ctx ? `g:${ctx}:` : ''}${base}`
+    const { data, error } = await ctxFilter(
+      supabase.from('app_config').select('value').eq('key', key), ctx)
+    if (error || !data) return {}
+    const out: Record<string, TimeWindow> = {}
+    for (const row of data as { value: unknown }[]) {
+      const v = row.value
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        for (const [m, w] of Object.entries(v as Record<string, unknown>)) {
+          if (w && typeof w === 'object') {
+            const ww = w as Record<string, unknown>
+            out[m] = {
+              fromSeconds: typeof ww.fromSeconds === 'number' ? ww.fromSeconds : null,
+              toSeconds: typeof ww.toSeconds === 'number' ? ww.toSeconds : null
+            }
+          }
+        }
+      }
+    }
+    return out
+  } catch { return {} }
+}
+
+// Merge one mode's window into the synced map (local wins on a key clash, like the
+// app). Passing an all-null window clears that mode's entry.
+export async function saveTrainingWindow(ctx: Ctx, kind: string, mode: string, win: TimeWindow): Promise<void> {
+  const base = TRAINING_WINDOW_KEY[kind]
+  if (!base || !mode.trim()) return
+  const { data: sess } = await supabase.auth.getSession()
+  const uid = sess.session?.user.id
+  if (!uid) throw new Error('not_authenticated')
+  const current = await loadTrainingWindows(ctx, kind)
+  if (win.fromSeconds == null && win.toSeconds == null) delete current[mode]
+  else current[mode] = { fromSeconds: win.fromSeconds ?? null, toSeconds: win.toSeconds ?? null }
+  const key = `${ctx ? `g:${ctx}:` : ''}${base}`
+  const { error } = await supabase.from('app_config')
+    .upsert({ owner_id: uid, group_id: ctx, key, value: current }, { onConflict: 'owner_id,key' })
+  if (error) throw error
+}
+
 // My per-group display name (group_names: one row per group+user), or null if unset.
 // Best-effort — never throws (the UI just shows "festlegen" if it can't read).
 export async function myGroupName(groupId: string): Promise<string | null> {

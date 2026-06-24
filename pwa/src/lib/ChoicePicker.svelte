@@ -7,10 +7,11 @@
   // with a count show it, are bold and sorted to the front. New entries can be
   // added behind a "+".
   let { title, items, selected = [], maxSelection = 1, counts = {}, allowAdd = true,
-        onPicked, onAdd, onClose }:
+        suffixes = {}, onPicked, onAdd, onEdit, onClose }:
     { title: string; items: string[]; selected?: string[]; maxSelection?: number
-      counts?: Record<string, number>; allowAdd?: boolean
-      onPicked: (names: string[]) => void; onAdd?: (name: string) => void; onClose: () => void } = $props()
+      counts?: Record<string, number>; allowAdd?: boolean; suffixes?: Record<string, string>
+      onPicked: (names: string[]) => void; onAdd?: (name: string) => void
+      onEdit?: (item: string) => void; onClose: () => void } = $props()
 
   let pool = $state<string[]>([...items])
   let checked = $state<string[]>(selected.filter((s) => items.includes(s)))
@@ -49,9 +50,12 @@
     </div>
     <div class="chips">
       {#each display as item (item)}
-        <button class="chip" class:on={checked.includes(item)} class:hot={(counts[item] ?? 0) > 0} onclick={() => tap(item)}>
-          {item}{#if (counts[item] ?? 0) > 0} ({counts[item]}){/if}
-        </button>
+        <span class="chipwrap">
+          <button class="chip" class:on={checked.includes(item)} class:hot={(counts[item] ?? 0) > 0} onclick={() => tap(item)}>
+            {item}{#if (counts[item] ?? 0) > 0} ({counts[item]}){/if}{#if suffixes[item]}<span class="sfx">{suffixes[item]}</span>{/if}
+          </button>
+          {#if onEdit}<button class="edit" aria-label="Bearbeiten" onclick={() => onEdit(item)}>✎</button>{/if}
+        </span>
       {/each}
       {#if allowAdd}
         {#if adding}
@@ -75,6 +79,10 @@
   .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .head strong { font-size: 16px; }
   .chips { display: flex; flex-wrap: wrap; gap: 8px; }
+  .chipwrap { display: inline-flex; align-items: center; gap: 2px; }
+  .sfx { color: var(--on-surface-variant); font-weight: 400; font-size: 12px; margin-left: 4px; }
+  .edit { background: transparent; border: 1px solid var(--outline); border-radius: 999px;
+    width: 30px; height: 30px; font-size: 13px; color: var(--on-surface-variant); cursor: pointer; padding: 0; }
   .chip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
     padding: 9px 14px; font-size: 14px; color: var(--on-surface); cursor: pointer; }
   .chip.hot { font-weight: 800; }
