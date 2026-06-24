@@ -59,6 +59,17 @@
     const newest = matches[0]
     if (newest) { dayFilter = dayOf(newest.at); catFilter = newest.category ?? '' }
   }
+  // Our live editor was taken over (a newer claim — the app or another device). Drop
+  // out of the editor into the read-only live detail and briefly say so, like the app.
+  let takeoverNote = $state(false)
+  let takeoverNoteTimer: ReturnType<typeof setTimeout> | null = null
+  function onMatchTakenOver(m: MatchItem) {
+    matchEditor = null
+    openMatch(m)
+    takeoverNote = true
+    if (takeoverNoteTimer) clearTimeout(takeoverNoteTimer)
+    takeoverNoteTimer = setTimeout(() => { takeoverNote = false }, 6000)
+  }
   let ready = $state(false)
 
   // Auth form
@@ -346,7 +357,7 @@
     pollTimer = setInterval(refreshSelected, m.running ? 3000 : 6000)
   }
   function closeMatch() {
-    stopPoll(); cancelSpeech(); selected = null
+    stopPoll(); cancelSpeech(); selected = null; takeoverNote = false
     route = { type: 'home' }
     writeHomeUrl()
     startListPoll()
@@ -690,10 +701,11 @@
         {#if ctx}<button class="ghost small share" onclick={shareMatch} aria-label={t('eval.share')}>
           {#if isIOS}<svg class="shareglyph" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12 2l3.5 3.5-1.4 1.4L13 5.8V15h-2V5.8L9.9 6.9 8.5 5.5 12 2z"/><path fill="currentColor" d="M6 10h2v9h8v-9h2v9a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v-9z"/></svg>{:else}{t('eval.share')}{/if}
         </button>{/if}
-        <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>{t('match.edit')}</button>
+        <button class="ghost small" onclick={() => { const m = selected; closeMatch(); matchEditor = { mode: 'edit', initial: m } }}>{selected.running ? t('match.takeover') : t('match.edit')}</button>
       </div>
     </div>
     {#if shareNote}<div class="share-note">{shareNote}</div>{/if}
+    {#if takeoverNote}<div class="takeover-note">{t('match.taken_over')}</div>{/if}
     <div class="detail">
       {#if selected.running}<div class="live big"><span class="dot"></span> LIVE</div>{/if}
       <!-- Keyed on swapAnim so a live side-swap re-mounts the hero and replays the
@@ -929,7 +941,7 @@
   <MatchEditor mode={matchEditor.mode} {ctx} {myUserId} initial={matchEditor.initial}
                pool={[...new Set([...playerPool, ...playerSuggestions])]} categorySuggestions={categories} peerMatches={matches}
                defaultCategory={matchEditor.mode === 'new' ? (catFilter || categories[0] || defaultCategory) : defaultCategory}
-               onClose={() => (matchEditor = null)} onSaved={onMatchSaved} />
+               onClose={() => (matchEditor = null)} onSaved={onMatchSaved} onTakenOver={onMatchTakenOver} />
 {/if}
 {#if showCatEditor}
   <CategoryEditor {ctx} {categories} {defaultCategory}
@@ -1177,6 +1189,10 @@
   .detail-top { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
   .back { align-self: flex-start; }
   .share-note { margin-top: 6px; font-size: 13px; color: var(--on-surface-variant); text-align: right; }
+  /* Transient "someone else is editing now" banner shown after a takeover. */
+  .takeover-note { margin-top: 8px; padding: 9px 12px; border-radius: 10px; font-size: 13px;
+    background: color-mix(in srgb, var(--live) 14%, var(--surface)); border: 1px solid var(--live);
+    color: var(--on-surface); text-align: center; }
   .center { text-align: center; }
   .detail { display: flex; flex-direction: column; gap: 12px; }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }

@@ -18,10 +18,10 @@
   import { t } from './i18n.svelte'
   import { onMount } from 'svelte'
 
-  let { mode, ctx, myUserId, initial, pool, categorySuggestions, defaultCategory, peerMatches, onClose, onSaved }:
+  let { mode, ctx, myUserId, initial, pool, categorySuggestions, defaultCategory, peerMatches, onClose, onSaved, onTakenOver }:
     { mode: 'new' | 'edit'; ctx: string | null; myUserId: string | null; initial?: MatchItem | null
       pool: string[]; categorySuggestions: string[]; defaultCategory: string; peerMatches: MatchItem[]
-      onClose: () => void; onSaved: () => void } = $props()
+      onClose: () => void; onSaved: () => void; onTakenOver?: (m: MatchItem) => void } = $props()
 
   // The match counter is always the live scoring screen — a new match opens straight
   // into it (in the current category), like the app's "Neues Match".
@@ -43,10 +43,22 @@
   let askDelete = $state(false)       // "Löschen…" confirmation
   const ROD_SHORT = 10, ROD_LONG = 15 // the 10s / 15s countdown buttons
   let progressEl: HTMLElement | undefined = $state()
+  // The set-tiles (Satzverlauf) get their own scroll region so the controls above and
+  // "Spielende" below stay pinned; a soft bottom fade hints at more rows when scrollable.
+  let midEl: HTMLElement | undefined = $state()
+  let midScrollable = $state(false)
+  let midAtBottom = $state(true)
+  function updateMid() {
+    const el = midEl; if (!el) return
+    const over = el.scrollHeight - el.clientHeight
+    midScrollable = over > 4
+    midAtBottom = el.scrollTop >= over - 4
+  }
   let ts = $state(initial?.at ?? 0)
   let err = $state('')
   let editor: LiveEditor | null = null
   let saveTimer: ReturnType<typeof setTimeout> | null = null
+  let takenOver = $state(false)   // a newer claim took the editor token from us
 
   const labelA = $derived(teamA.trim() || '–')
   const labelB = $derived(teamB.trim() || '–')
@@ -59,7 +71,23 @@
     const scope = ctx ?? myUserId
     if (!scope) return
     editor = createLiveEditor(liveChannelId(scope, ts),
-      () => ({ json: JSON.stringify(score), teamA: labelA, teamB: labelB }))
+      () => ({ json: JSON.stringify(score), teamA: labelA, teamB: labelB }),
+      onSuperseded)
+  }
+  // Someone else (the app or another device) took over the editor token. Drop to the
+  // read-only detail without saving/ending — the new editor owns the running row now.
+  function onSuperseded() {
+    if (takenOver) return
+    takenOver = true
+    if (saveTimer) clearTimeout(saveTimer)
+    stopCountdown()
+    editor?.leave(); editor = null
+    const m: MatchItem = {
+      homeName: labelA, awayName: labelB, setsHome: sets.a, setsAway: sets.b,
+      category: category.trim() || null, at: ts,
+      state: JSON.parse(JSON.stringify(score)), running: true,
+    }
+    if (onTakenOver) onTakenOver(m); else onClose()
   }
   function pushLive() { if (running && editor) editor.push(JSON.stringify(score), labelA, labelB) }
   // Only persist once the match has CONTENT (an action or a named team) — opening
@@ -117,9 +145,19 @@
     ts = Date.now(); running = true
     startLiveEditor()
   }
-  onMount(() => { if (mode === 'new') start() })
+  onMount(() => {
+    if (mode === 'new') start()
+    // Recompute the scroll/fade state when the set-tiles region changes size (a new
+    // goal or set grows the canvas) or the viewport resizes.
+    let ro: ResizeObserver | undefined
+    if (progressEl && 'ResizeObserver' in window) { ro = new ResizeObserver(() => updateMid()); ro.observe(progressEl) }
+    updateMid()
+    return () => ro?.disconnect()
+  })
+  // Also re-check after each scored action (rows changed → canvas re-laid out).
+  $effect(() => { progress; requestAnimationFrame(updateMid) })
   // For editing an already-running match, take over as the live editor.
-  $effect(() => { if (running && !editor && mode === 'edit') startLiveEditor() })
+  $effect(() => { if (running && !editor && mode === 'edit' && !takenOver) startLiveEditor() })
 
   // Team chips: 1–2 players joined by " & " (like the app's teamLabel). Picking a
   // team applies the selection; new names are added to the synced pool.
@@ -188,6 +226,8 @@
 
 <div class="overlay" role="presentation">
   <div class="sheet">
+    <!-- Fixed controls (everything above the set tiles stays pinned). -->
+    <div class="top">
       <!-- Toolbar like the app's match counter: back (parks), Spielverlauf, Rückgängig,
            Seiten tauschen, and the three-dot overflow (Teilen, Löschen…). -->
       <div class="toolbar">
@@ -256,13 +296,20 @@
       </div>
 
       <div class="statsrow"><div class="stats">{statsLine('A')}</div><div class="stats">{statsLine('B')}</div></div>
+    </div><!-- /.top -->
 
+    <!-- Set tiles: the only scrollable region. Soft bottom fade while there's more
+         below; "Spielende" and everything above stay put. -->
+    <div class="mid" class:faded={midScrollable && !midAtBottom} bind:this={midEl} onscroll={updateMid}>
       <div bind:this={progressEl}>
         {#if progress.rows.length}
           <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
         {/if}
       </div>
+    </div>
 
+    <!-- Pinned bottom: error + "Spielende" (always visible). -->
+    <div class="bottom">
       {#if err}<p class="err">{err}</p>{/if}
 
       {#if askDelete}
@@ -274,6 +321,7 @@
       {:else}
         <button class="primary end" onclick={() => (askEnd = true)}>{t('me.match_end')}</button>
       {/if}
+    </div>
 
       {#if menuOpen && isIOS}
         <!-- iOS: a bottom action sheet instead of a top-right dropdown -->
@@ -309,9 +357,16 @@
   /* Full-screen like the Android match counter (not a bottom sheet) — it needs the room. */
   .overlay { position: fixed; inset: 0; z-index: 940; background: var(--bg);
     display: flex; align-items: stretch; justify-content: center; }
-  .sheet { width: 100%; max-width: 480px; height: 100%; overflow-y: auto; background: var(--bg);
+  .sheet { width: 100%; max-width: 480px; height: 100%; overflow: hidden; background: var(--bg);
     border-radius: 0; display: flex; flex-direction: column; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
+  /* Fixed controls above, scrollable set tiles in the middle, pinned actions below. */
+  .top { flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; }
+  .mid { flex: 1 1 auto; min-height: 0; overflow-y: auto; overflow-x: hidden; }
+  /* Soft bottom fade while more rows are hidden below (removed once scrolled to end). */
+  .mid.faded { -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent);
+    mask-image: linear-gradient(to bottom, #000 calc(100% - 28px), transparent); }
+  .bottom { flex: 0 0 auto; display: flex; flex-direction: column; gap: 12px; }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }
   .side { display: flex; flex-direction: column; align-items: center; gap: 2px; min-width: 0; }
   .nm { background: transparent; border: 0; font-size: 18px; font-weight: 800; cursor: pointer;

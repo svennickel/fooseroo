@@ -41,16 +41,32 @@ export type LiveEditor = {
 // token (a fresh, newer claim ts takes the editor role over from the app, per the
 // LiveMatch protocol), heartbeat the claim, answer a viewer's "hello" with the
 // current state, and push "state" on every change. Mirrors cloud/LiveMatch.kt's
-// editor role (without the takeover-veto UI — the newest claim simply wins).
-export function createLiveEditor(channelId: string, getState: () => { json: string; teamA: string; teamB: string } | null): LiveEditor {
+// editor role: the newest claim wins, and when a NEWER claim arrives (someone else
+// takes over from the app or another device) we yield — stop heartbeating/pushing
+// and fire onSuperseded so the editor can drop to the read-only detail.
+export function createLiveEditor(
+  channelId: string,
+  getState: () => { json: string; teamA: string; teamB: string } | null,
+  onSuperseded?: () => void,
+): LiveEditor {
   const myId = (globalThis.crypto?.randomUUID?.() ?? `web-edit-${channelId.length}-${Date.now()}`)
   const claimTs = Date.now()
   const ch = supabase.channel(channelId, { config: { broadcast: { self: false } } })
   let hb: ReturnType<typeof setInterval> | null = null
-  const claim = () => ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'claim', sender: myId, ts: claimTs } })
+  let active = true // we hold the editor token until a newer claim supersedes us
+  const stopHb = () => { if (hb) { clearInterval(hb); hb = null } }
+  const claim = () => { if (active) ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'claim', sender: myId, ts: claimTs } }) }
   ch.on('broadcast', { event: EVENT }, (m: { payload?: unknown }) => {
     const msg = (m.payload ?? {}) as LiveMessage
-    if (!msg || msg.sender === myId) return
+    if (!msg || msg.sender === myId || !active) return
+    // A newer claim (or an equal-ts claim from a lower id) takes the token from us —
+    // same ordering as LiveMatch.kt. Yield immediately and notify the caller.
+    if (msg.type === 'claim' && msg.ts != null &&
+        (msg.ts > claimTs || (msg.ts === claimTs && msg.sender < myId))) {
+      active = false; stopHb()
+      onSuperseded?.()
+      return
+    }
     if (msg.type === 'hello') {
       claim()
       const s = getState()
@@ -63,9 +79,9 @@ export function createLiveEditor(channelId: string, getState: () => { json: stri
     hb = setInterval(claim, 3000) // heartbeat so a fresh viewer learns who holds the token
   })
   return {
-    push: (json, teamA, teamB) => ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'state', sender: myId, state: json, ts: Date.now(), teamA, teamB } }),
-    end: (finalState, abandoned) => ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'ended', sender: myId, state: finalState, abandoned } }),
-    leave: () => { if (hb) clearInterval(hb); try { supabase.removeChannel(ch) } catch { /* ignore */ } },
+    push: (json, teamA, teamB) => { if (active) ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'state', sender: myId, state: json, ts: Date.now(), teamA, teamB } }) },
+    end: (finalState, abandoned) => { if (active) ch.send({ type: 'broadcast', event: EVENT, payload: { type: 'ended', sender: myId, state: finalState, abandoned } }) },
+    leave: () => { active = false; stopHb(); try { supabase.removeChannel(ch) } catch { /* ignore */ } },
   }
 }
 

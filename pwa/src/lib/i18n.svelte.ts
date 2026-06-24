@@ -149,7 +149,9 @@ const de: Record<string, string> = {
   'install.ios_mid': ' tippen, dann ', 'install.ios_a2hs': '„Zum Home-Bildschirm“', 'install.ios_end': '.',
 
   // match detail + shared match
-  'match.edit': 'Bearbeiten', 'match.read_on': '🔊  Vorlesen: an', 'match.read_off': '🔈  Vorlesen: aus',
+  'match.edit': 'Bearbeiten', 'match.takeover': 'Übernehmen',
+  'match.taken_over': 'Jemand anderes bearbeitet dieses Match gerade.',
+  'match.read_on': '🔊  Vorlesen: an', 'match.read_off': '🔈  Vorlesen: aus',
   'shared.match_intro': 'Ein geteiltes Match wurde mit dir geteilt. Melde dich an, um es anzusehen.',
   'shared.match_loading': 'Geteiltes Match wird geladen…', 'shared.match_label': '%s · geteiltes Match',
   'shared.match_notfound': 'Dieses geteilte Match wurde nicht gefunden. Möglicherweise bist du kein Mitglied der Gruppe oder es wurde gelöscht.',
@@ -334,7 +336,9 @@ const en: Record<string, string> = {
   'install.ios_pre': 'To install: tap ', 'install.ios_share': 'Share',
   'install.ios_mid': ' below, then ', 'install.ios_a2hs': '“Add to Home Screen”', 'install.ios_end': '.',
 
-  'match.edit': 'Edit', 'match.read_on': '🔊  Read aloud: on', 'match.read_off': '🔈  Read aloud: off',
+  'match.edit': 'Edit', 'match.takeover': 'Take over',
+  'match.taken_over': 'Someone else is now editing this match.',
+  'match.read_on': '🔊  Read aloud: on', 'match.read_off': '🔈  Read aloud: off',
   'shared.match_intro': 'A match was shared with you. Sign in to view it.',
   'shared.match_loading': 'Loading the shared match…', 'shared.match_label': '%s · shared match',
   'shared.match_notfound': 'This shared match was not found. You may not be a member of the group, or it was deleted.',
