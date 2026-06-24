@@ -15,7 +15,7 @@
   import { addPlayersToPool, type MatchItem } from './data'
   import MatchProgress from './MatchProgress.svelte'
   import ChoicePicker from './ChoicePicker.svelte'
-  import { t } from './i18n.svelte'
+  import { t, getLang } from './i18n.svelte'
   import { onMount } from 'svelte'
 
   let { mode, ctx, myUserId, initial, pool, categorySuggestions, defaultCategory, peerMatches, onClose, onSaved, onTakenOver }:
@@ -62,6 +62,16 @@
 
   const labelA = $derived(teamA.trim() || '–')
   const labelB = $derived(teamB.trim() || '–')
+  // Read-only match date for the header chip (Heute / Gestern / full date), mirroring
+  // the matches list's day chip. Not editable here — the match keeps its own day.
+  function dateLabel(at: number): string {
+    if (!at) return ''
+    const d = new Date(at)
+    const k = (x: Date) => `${x.getFullYear()}-${x.getMonth()}-${x.getDate()}`
+    if (k(d) === k(new Date())) return t('eval.today')
+    if (k(d) === k(new Date(Date.now() - 86400000))) return t('eval.yesterday')
+    return d.toLocaleDateString(getLang() === 'en' ? 'en-GB' : 'de-DE', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' })
+  }
   const view = $derived(parseMatchState(JSON.parse(JSON.stringify(score)), running))
   const progress = $derived(progressRows(view, running))
   const sets = $derived(setsWonFromGames(score.games))
@@ -252,9 +262,17 @@
         </div>
       </div>
 
-      <!-- Category chip (tap to change), like the app counter's category chip. -->
-      <div class="catrow">
-        <button class="catchip" onclick={() => (picking = 'cat')}>{category || defaultCategory}</button>
+      <!-- Header: read-only date + category (tap to change) top-left, LIVE marker
+           top-right — like the app's live counter and the matches list's day chip. -->
+      <div class="headrow">
+        <div class="hleft">
+          <span class="datechip">
+            <svg class="fci" viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M19 4h-1V2h-2v2H8V2H6v2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 16H5V10h14v10zm0-12H5V6h14v2z"/></svg>
+            {dateLabel(ts)}
+          </span>
+          <button class="catchip" onclick={() => (picking = 'cat')}>{category || defaultCategory}</button>
+        </div>
+        <div class="live"><span class="dot"></span> LIVE</div>
       </div>
 
       <!-- Countdown row: [10s] [Bereit / countdown] [15s] -->
@@ -278,6 +296,21 @@
         </div>
       </div>
 
+    </div><!-- /.top -->
+
+    <!-- Set tiles: the only scrollable region. Soft bottom fade while there's more
+         below; "Spielende" and everything above stay put. -->
+    <div class="mid" class:faded={midScrollable && !midAtBottom} bind:this={midEl} onscroll={updateMid}>
+      <div bind:this={progressEl}>
+        {#if progress.rows.length}
+          <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
+        {/if}
+      </div>
+    </div>
+
+    <!-- Pinned bottom: the whole control deck (serve/reset/timeout + goal rows),
+         stats, then "Spielende" — all kept above the fold, in thumb reach. -->
+    <div class="bottom">
       <!-- Per-team small buttons: Auflage · Reset · Timeout | Timeout · Reset · Auflage -->
       <div class="btn6">
         <button class="sb" class:on={score.serve === 'TEAM_A'} onclick={() => serve('TEAM_A')}>{t('me.serve')}</button>
@@ -296,20 +329,7 @@
       </div>
 
       <div class="statsrow"><div class="stats">{statsLine('A')}</div><div class="stats">{statsLine('B')}</div></div>
-    </div><!-- /.top -->
 
-    <!-- Set tiles: the only scrollable region. Soft bottom fade while there's more
-         below; "Spielende" and everything above stay put. -->
-    <div class="mid" class:faded={midScrollable && !midAtBottom} bind:this={midEl} onscroll={updateMid}>
-      <div bind:this={progressEl}>
-        {#if progress.rows.length}
-          <MatchProgress rows={progress.rows} runningSetIndex={progress.runningSetIndex} />
-        {/if}
-      </div>
-    </div>
-
-    <!-- Pinned bottom: error + "Spielende" (always visible). -->
-    <div class="bottom">
       {#if err}<p class="err">{err}</p>{/if}
 
       {#if askDelete}
@@ -375,9 +395,23 @@
   .cur { font-size: 40px; font-weight: 800; line-height: 1; padding: 0 8px; }
   /* Toolbar (match counter) */
   .toolbar { display: flex; align-items: center; justify-content: space-between; }
-  .catrow { display: flex; justify-content: center; }
+  /* Header row: date+category cluster left, LIVE marker right. */
+  .headrow { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+  .hleft { display: flex; align-items: center; gap: 8px; min-width: 0; }
+  .datechip { display: inline-flex; align-items: center; gap: 6px; background: var(--surface);
+    border: 1px solid var(--outline); border-radius: 999px; padding: 6px 12px; font-size: 13px;
+    font-weight: 600; color: var(--on-surface); white-space: nowrap; }
+  .datechip .fci { width: 16px; height: 16px; flex: 0 0 auto; color: var(--on-surface-variant); }
   .catchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
-    padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--on-surface); cursor: pointer; }
+    padding: 6px 14px; font-size: 13px; font-weight: 600; color: var(--on-surface); cursor: pointer;
+    max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* LIVE badge — red throbbing dot like the app's LiveDotView. */
+  .live { display: inline-flex; align-items: center; gap: 6px; color: var(--live); flex: 0 0 auto;
+    font-weight: 700; font-size: 13px; letter-spacing: .12em; }
+  .dot { width: 10px; height: 10px; border-radius: 50%; background: var(--live); display: inline-block;
+    animation: pulse 1.5s infinite; }
+  @keyframes pulse { 0% { transform: scale(1); opacity: 1 } 60% { transform: scale(1.45); opacity: .35 }
+    100% { transform: scale(1); opacity: 1 } }
   .tactions { display: flex; align-items: center; gap: 2px; }
   .tbtn { background: transparent; border: 0; color: var(--on-surface-variant); cursor: pointer;
     width: 40px; height: 40px; border-radius: 50%; font-size: 20px; display: inline-flex;
