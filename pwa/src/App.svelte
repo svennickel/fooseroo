@@ -71,6 +71,7 @@
     takeoverNoteTimer = setTimeout(() => { takeoverNote = false }, 6000)
   }
   let ready = $state(false)
+  let postLoginInfo = $state(false)   // one-time "what's unlocked" info after a fresh sign-in
 
   // Auth form
   let step = $state<'email' | 'code'>('email')
@@ -427,9 +428,13 @@
       ready = true; maybeResolve()
     })
     const { data: sub } = supabase.auth.onAuthStateChange((_e, session) => {
+      const wasSignedIn = signedIn
       signedIn = !!session; userEmail = session?.user.email ?? null
       myUserId = session?.user.id ?? null
       if (session) { step = 'email'; code = '' } else { entitled = null }
+      // A genuine fresh sign-in (not a restored/refreshed session, and not the focus
+      // re-fire quirk) → show the one-time "what's unlocked now" info.
+      if (_e === 'SIGNED_IN' && session && !wasSignedIn && ready) postLoginInfo = true
       maybeResolve()
       // Resume a join the user started before signing in.
       if (session && pendingJoinCode) { const c = pendingJoinCode; pendingJoinCode = ''; attemptJoin(c) }
@@ -919,6 +924,20 @@
 {#if gate}
   <Onboarding onDone={() => (gate = false)} />
 {/if}
+{#if postLoginInfo}
+  <!-- One-time post-sign-in info: where "Dein Konto" lives + what's unlocked. -->
+  <div class="welcome-overlay" role="presentation">
+    <div class="welcome">
+      <h3>{t('acc.welcome_title')}</h3>
+      <p>{t('acc.welcome_body')}</p>
+      <ul>
+        <li>{t('acc.welcome_b1')}</li>
+        <li>{t('acc.welcome_b2')}</li>
+      </ul>
+      <button class="primary" onclick={() => (postLoginInfo = false)}>{t('acc.welcome_cta')}</button>
+    </div>
+  </div>
+{/if}
 {#if showSettings}
   <Settings onClose={() => (showSettings = false)} />
 {/if}
@@ -1182,6 +1201,18 @@
   .takeover-note { margin-top: 8px; padding: 9px 12px; border-radius: 10px; font-size: 13px;
     background: color-mix(in srgb, var(--live) 14%, var(--surface)); border: 1px solid var(--live);
     color: var(--on-surface); text-align: center; }
+  /* Post-sign-in welcome (centered card). */
+  .welcome-overlay { position: fixed; inset: 0; z-index: 970; background: rgba(0,0,0,.5);
+    display: flex; align-items: center; justify-content: center; padding: 20px; }
+  .welcome { width: 100%; max-width: 380px; background: var(--bg); border-radius: 18px;
+    padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }
+  .welcome h3 { margin: 0; font-size: 19px; }
+  .welcome p { margin: 0; font-size: 14px; color: var(--on-surface-variant); }
+  .welcome ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 8px;
+    font-size: 14px; color: var(--on-surface); }
+  .welcome .primary { align-self: stretch; margin-top: 4px; background: var(--team-a);
+    color: var(--on-accent); border: 0; border-radius: 12px; padding: 12px 16px;
+    font-size: 15px; font-weight: 800; cursor: pointer; }
   .center { text-align: center; }
   .detail { display: flex; flex-direction: column; gap: 12px; }
   .hero { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 8px; }

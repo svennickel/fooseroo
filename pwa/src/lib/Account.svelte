@@ -21,6 +21,7 @@
   let busy = $state(false)
   let err = $state('')
   let confirmOut = $state(false)
+  let showBenefits = $state(false)   // "Was bringt mir das?" expander
 
   // Per-group UI state, keyed by group id.
   let names = $state<Record<string, string | null>>({})   // my display name in each group
@@ -79,6 +80,19 @@
       <button class="ghost small" onclick={onClose}>{t('common.close')}</button>
     </div>
     <p class="intro">{t('acc.intro')}</p>
+
+    <!-- Value of the cloud features, unified (backup · sync · group sharing). -->
+    <button class="benefits-toggle" onclick={() => (showBenefits = !showBenefits)} aria-expanded={showBenefits}>
+      {t('acc.benefits_toggle')} <span class="bcaret">{showBenefits ? '▴' : '▾'}</span>
+    </button>
+    {#if showBenefits}
+      <ul class="benefits">
+        <li><span class="bi">🔒</span><div><strong>{t('acc.benefit_backup_t')}</strong><span>{t('acc.benefit_backup_d')}</span></div></li>
+        <li><span class="bi">🔄</span><div><strong>{t('acc.benefit_sync_t')}</strong><span>{t('acc.benefit_sync_d')}</span></div></li>
+        <li><span class="bi">👥</span><div><strong>{t('acc.benefit_group_t')}</strong><span>{t('acc.benefit_group_d')}</span></div></li>
+      </ul>
+    {/if}
+
     <div class="scroll">
       <!-- Backup & Sync -->
       <div class="acard" class:active={signedIn}>
@@ -172,6 +186,16 @@
   .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .head strong { font-size: 17px; }
   .intro { color: var(--on-surface-variant); font-size: 13px; margin: 0; }
+  .benefits-toggle { align-self: flex-start; background: transparent; border: 0; cursor: pointer;
+    color: var(--team-a); font-size: 13px; font-weight: 700; padding: 2px 0; display: inline-flex; gap: 4px; }
+  .bcaret { color: var(--on-surface-variant); }
+  .benefits { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 10px;
+    background: var(--surface); border: 1px solid var(--outline); border-radius: 12px; padding: 12px 14px; }
+  .benefits li { display: flex; gap: 10px; align-items: flex-start; }
+  .benefits .bi { font-size: 18px; line-height: 1.2; flex: 0 0 auto; }
+  .benefits div { display: flex; flex-direction: column; gap: 1px; }
+  .benefits strong { font-size: 14px; }
+  .benefits span { font-size: 12px; color: var(--on-surface-variant); }
   .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex;
     flex-direction: column; gap: 12px; margin-top: 6px; }
   .acard { background: var(--surface); border: 1px solid var(--outline); border-radius: 14px;

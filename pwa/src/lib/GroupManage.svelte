@@ -31,6 +31,10 @@
   const codeExpired = $derived(!!settings?.joinExpiresAt && Date.parse(settings.joinExpiresAt) <= Date.now())
   const haveCode = $derived(!!settings?.joinCode && !codeExpired)
   const retNum = $derived(retDays.trim() === '' ? null : (Math.max(1, parseInt(retDays, 10) || 0) || null))
+  let copied = $state(false)
+  async function copyCode(c: string) {
+    try { await navigator.clipboard.writeText(c); copied = true; setTimeout(() => (copied = false), 1500) } catch { /* ignore */ }
+  }
   function fmtDateTime(iso: string): string {
     try { return new Date(iso).toLocaleString(getLang() === 'en' ? 'en-GB' : 'de-DE',
       { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
@@ -111,6 +115,10 @@
             {#if haveCode}
               <div class="coderow">
                 <code class="code">{settings.joinCode}</code>
+                <button class="iconbtn" onclick={() => copyCode(settings?.joinCode ?? '')} aria-label={t('gm.copy')} title={t('gm.copy')}>
+                  <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M16 1H4a2 2 0 0 0-2 2v14h2V3h12V1zm3 4H8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2zm0 16H8V7h11v14z"/></svg>
+                </button>
+                {#if copied}<span class="copied">{t('gm.copied')}</span>{/if}
                 <button class="ghost small" onclick={regen} disabled={busy}>{t('gm.regen')}</button>
               </div>
               {#if settings.joinExpiresAt}
@@ -233,6 +241,11 @@
     text-transform: uppercase; letter-spacing: .04em; }
   .coderow { display: flex; align-items: center; gap: 10px; }
   .code { font-size: 20px; font-weight: 800; letter-spacing: .12em; color: var(--team-a); }
+  .iconbtn { background: transparent; border: 0; cursor: pointer; color: var(--on-surface-variant);
+    width: 34px; height: 34px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; }
+  .iconbtn:active { background: var(--surface-variant); }
+  .iconbtn svg { width: 20px; height: 20px; }
+  .copied { font-size: 12px; font-weight: 700; color: var(--ok); }
   .chk { display: flex; align-items: center; justify-content: space-between; gap: 12px; font-size: 14px; }
   /* iOS-style toggle switch (instead of a raw checkbox) */
   .sw { position: relative; width: 46px; height: 28px; flex: 0 0 auto; }
