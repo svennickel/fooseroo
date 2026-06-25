@@ -272,27 +272,22 @@
           </span>
           <button class="catchip" onclick={() => (picking = 'cat')}>{category || defaultCategory}</button>
         </div>
-        <div class="live"><span class="dot"></span> LIVE</div>
       </div>
 
-      <!-- Countdown row: [10s] [Bereit / countdown] [15s] -->
-      <div class="cdrow">
-        <button class="rod" onclick={() => startCountdown(ROD_SHORT)}>{ROD_SHORT}s</button>
-        <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
-          {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}` : t('me.ready')}
-          {#if cdRunning}<div class="cdc">{t('me.countdown', Math.round(cdTotal / 1000))}</div>{/if}
-        </div>
-        <button class="rod" onclick={() => startCountdown(ROD_LONG)}>{ROD_LONG}s</button>
-      </div>
-
-      <!-- Names + set score. Tapping a side opens the player chip picker (1–2). -->
+      <!-- Names · LIVE centered above the set score · per-team status (incl. „Auflage")
+           under each name — like the Android counter. -->
       <div class="hero">
         <div class="side a">
           <button class="nm a" onclick={() => (picking = 'a')}>{labelA}</button>
+          <span class="stats">{statsLine('A')}</span>
         </div>
-        <div class="cur">{sets.a} : {sets.b}</div>
+        <div class="midscore">
+          <div class="live"><span class="dot"></span> LIVE</div>
+          <div class="cur">{sets.a} : {sets.b}</div>
+        </div>
         <div class="side b">
           <button class="nm b" onclick={() => (picking = 'b')}>{labelB}</button>
+          <span class="stats">{statsLine('B')}</span>
         </div>
       </div>
 
@@ -321,14 +316,26 @@
         <button class="sb" class:on={score.serve === 'TEAM_B'} onclick={() => serve('TEAM_B')}>{t('me.serve')}</button>
       </div>
 
-      <!-- Tor | Satzende | Tor -->
+      <!-- Tor | (Satzende über Spielende, schmaler) | Tor — der Mittelstapel ist so
+           hoch wie die Tor-Buttons, mit leichtem vertikalem Abstand. -->
       <div class="goalrow">
         <button class="tor a" onclick={() => goal('TEAM_A')}>{t('me.goal')}</button>
-        <button class="finish" onclick={finishSet} disabled={!canFinishSet}>{t('me.set_end')}</button>
+        <div class="midcol">
+          <button class="finish" onclick={finishSet} disabled={!canFinishSet}>{t('me.set_end')}</button>
+          <button class="endbtn" onclick={() => (askEnd = true)}>{t('me.match_end')}</button>
+        </div>
         <button class="tor b" onclick={() => goal('TEAM_B')}>{t('me.goal')}</button>
       </div>
 
-      <div class="statsrow"><div class="stats">{statsLine('A')}</div><div class="stats">{statsLine('B')}</div></div>
+      <!-- Countdown unterhalb der Tor-Buttons: [10s] [Bereit / countdown] [15s] -->
+      <div class="cdrow">
+        <button class="rod" onclick={() => startCountdown(ROD_SHORT)}>{ROD_SHORT}s</button>
+        <div class="cd" class:run={cdRunning} class:warn={cdRunning && cdRemaining < cdTotal * 0.35}>
+          {cdRunning ? `${(cdRemaining / 1000).toFixed(1)}` : t('me.ready')}
+          {#if cdRunning}<div class="cdc">{t('me.countdown', Math.round(cdTotal / 1000))}</div>{/if}
+        </div>
+        <button class="rod" onclick={() => startCountdown(ROD_LONG)}>{ROD_LONG}s</button>
+      </div>
 
       {#if err}<p class="err">{err}</p>{/if}
 
@@ -338,8 +345,6 @@
       {:else if askEnd}
         <div class="confirm"><p><strong>{t('me.end_q')}</strong><br>{hasGoals ? t('me.end_save') : t('me.end_discard')}</p>
           <div class="crow"><button class="primary" onclick={endConfirmed}>{t('me.match_end')}</button><button class="ghost small" onclick={() => (askEnd = false)}>{t('common.cancel')}</button></div></div>
-      {:else}
-        <button class="primary end" onclick={() => (askEnd = true)}>{t('me.match_end')}</button>
       {/if}
     </div>
 
@@ -392,7 +397,8 @@
   .nm { background: transparent; border: 0; font-size: 18px; font-weight: 800; cursor: pointer;
     max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .nm.a { color: var(--team-a); } .nm.b { color: var(--team-b); }
-  .cur { font-size: 40px; font-weight: 800; line-height: 1; padding: 0 8px; }
+  .midscore { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; padding: 0 6px; }
+  .cur { font-size: 40px; font-weight: 800; line-height: 1; }
   /* Toolbar (match counter) */
   .toolbar { display: flex; align-items: center; justify-content: space-between; }
   /* Header row: date+category cluster left, LIVE marker right. */
@@ -444,15 +450,19 @@
   .tor { padding: 24px 0; font-size: 22px; font-weight: 800; border: 0; border-radius: 14px;
     color: #fff; cursor: pointer; }
   .tor.a { background: var(--team-a); } .tor.b { background: var(--team-b); }
-  .finish { background: var(--surface); border: 1px solid var(--outline); border-radius: 14px;
-    padding: 0 14px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
+  /* Middle stack between the Tor buttons: Satzende (neutral) over Spielende (accent),
+     equal height with a slight gap; together as tall as a Tor button (grid stretch). */
+  .midcol { display: flex; flex-direction: column; gap: 6px; min-width: 96px; }
+  .midcol > button { flex: 1 1 0; min-height: 0; border-radius: 12px; font-size: 13px;
+    font-weight: 700; cursor: pointer; padding: 0 8px; }
+  .finish { background: var(--surface); border: 1px solid var(--outline); color: var(--on-surface); }
   .finish:disabled { opacity: .4; cursor: default; }
-  .statsrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .stats { font-size: 12px; color: var(--on-surface-variant); white-space: pre-line; min-height: 16px; }
-  .stats:last-child { text-align: right; }
+  .endbtn { background: var(--team-a); color: var(--on-accent); border: 0; }
+  /* Per-team status (timeouts/reset/„Auflage") now sits under each name. */
+  .stats { font-size: 11px; color: var(--on-surface-variant); white-space: pre-line;
+    min-height: 14px; line-height: 1.25; text-align: center; }
   .primary { background: var(--team-a); color: var(--on-accent); border: 0; border-radius: 12px;
     padding: 12px 18px; font-size: 16px; font-weight: 800; cursor: pointer; }
-  .primary.end { align-self: stretch; }
   .ghost.small { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 600; cursor: pointer; }
   .danger.small { background: transparent; color: var(--bad); border: 1px solid var(--bad);
