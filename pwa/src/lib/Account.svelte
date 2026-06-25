@@ -99,9 +99,10 @@
         {:else if step === 'idle'}
           <button class="primary" onclick={() => (step = 'email')}>{t('acc.signin_create')}</button>
         {:else if step === 'email'}
-          <input type="email" inputmode="email" autocomplete="email" bind:value={email}
+          <input type="email" inputmode="email" autocomplete="email"
+                 autocapitalize="none" autocorrect="off" spellcheck="false" bind:value={email}
                  placeholder={t('auth.email_ph')}
-                 onkeydown={(e) => { if (e.key === 'Enter') send() }} />
+                 onkeydown={(e) => { if (e.key === 'Enter' && email.includes('@')) send() }} />
           <button class="primary" onclick={send} disabled={busy || !email.includes('@')}>{t('acc.send_code')}</button>
         {:else}
           <p class="hint">{t('acc.code_hint')}</p>

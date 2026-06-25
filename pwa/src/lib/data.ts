@@ -237,7 +237,7 @@ export async function leaveGroup(groupId: string): Promise<void> {
 export type Member = { userId: string; email: string | null; name: string | null; role: string; access: string }
 export type GroupSettings = {
   id: string; name: string; ownerId: string | null; maxMembers: number
-  joinCode: string | null; joinEnabled: boolean; joinDefaultAccess: string
+  joinCode: string | null; joinExpiresAt: string | null; joinEnabled: boolean; joinDefaultAccess: string
   retentionDays: number | null; retentionTz: string | null
 }
 
@@ -252,13 +252,14 @@ export async function groupMembers(groupId: string): Promise<Member[]> {
 // Group settings row (join code etc. only readable by managers via RLS → null fields).
 export async function groupSettings(groupId: string): Promise<GroupSettings | null> {
   const { data, error } = await supabase.from('groups')
-    .select('id,name,owner_id,max_members,join_code,join_enabled,join_default_access,retention_days,retention_tz')
+    .select('id,name,owner_id,max_members,join_code,join_code_expires_at,join_enabled,join_default_access,retention_days,retention_tz')
     .eq('id', groupId).maybeSingle()
   if (error || !data) return null
   const g = data as Record<string, unknown>
   return {
     id: g.id as string, name: (g.name as string) ?? '—', ownerId: (g.owner_id as string) ?? null,
     maxMembers: (g.max_members as number) ?? 20, joinCode: (g.join_code as string) ?? null,
+    joinExpiresAt: (g.join_code_expires_at as string) ?? null,
     joinEnabled: (g.join_enabled as boolean) ?? true, joinDefaultAccess: (g.join_default_access as string) ?? 'write',
     retentionDays: (g.retention_days as number) ?? null, retentionTz: (g.retention_tz as string) ?? null
   }
@@ -272,6 +273,10 @@ export async function setMemberAccess(groupId: string, target: string, access: s
 }
 export async function removeMember(groupId: string, target: string): Promise<void> {
   const { error } = await supabase.rpc('remove_member', { g: groupId, target }); if (error) throw error
+}
+// Hand the group over: target becomes owner, the caller (current owner) becomes moderator.
+export async function transferOwnership(groupId: string, target: string): Promise<void> {
+  const { error } = await supabase.rpc('transfer_ownership', { g: groupId, target }); if (error) throw error
 }
 export async function regenerateJoinCode(groupId: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('regenerate_join_code', { g: groupId }); if (error) throw error

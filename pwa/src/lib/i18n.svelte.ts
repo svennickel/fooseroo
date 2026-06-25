@@ -246,6 +246,10 @@ const de: Record<string, string> = {
   'gm.load_failed': 'Konnte die Gruppe nicht laden.', 'gm.delete_failed': 'Löschen fehlgeschlagen.',
   'gm.moderator': 'Moderator:in', 'gm.member': 'Mitglied',
   'gm.join_code': 'Beitritts-Code', 'gm.regen': 'Neu erzeugen', 'gm.join_enabled': 'Beitritt per Code erlaubt',
+  'gm.code_valid_until': 'Code gültig bis einschließlich %s',
+  'gm.code_invalid': 'Kein gültiger Code mehr verfügbar.', 'gm.code_generate': 'Code erzeugen',
+  'gm.retention_confirm': 'Wirklich speichern? Alle abgeschlossenen Ergebnisse, die älter als %s Tage sind, werden unwiderruflich gelöscht.',
+  'gm.retention_save': 'Löschen & speichern',
   'gm.default_access': 'Standard-Zugriff neuer Mitglieder:', 'gm.write': 'Schreiben', 'gm.read': 'Nur lesen',
   'gm.members': 'Mitglieder (%s)', 'gm.no_name': 'Ohne Namen', 'gm.you': '(du)', 'gm.remove': 'Entfernen',
   'gm.retention_title': 'Ergebnisse automatisch löschen',
@@ -253,6 +257,11 @@ const de: Record<string, string> = {
   'gm.off': 'aus', 'gm.danger_zone': 'Gefahrenzone', 'gm.delete_group': 'Gruppe löschen',
   'gm.delete_warn_pre': 'Das löscht die Gruppe samt aller Daten für alle Mitglieder – unwiderruflich. Tippe zum Bestätigen den Namen ',
   'gm.delete_warn_post': ' ein.', 'gm.delete_final': 'Endgültig löschen',
+  'gm.delete_confirm1': 'Diese Gruppe und alle geteilten Daten werden für alle Mitglieder endgültig gelöscht. Wirklich fortfahren?',
+  'gm.delete_continue': 'Fortfahren',
+  'gm.make_owner': 'Zum Eigentümer machen',
+  'gm.transfer_confirm': 'Willst du %s wirklich zum Eigentümer dieser Gruppe machen? Du bist danach nur noch Moderator. Tippe zum Bestätigen den Gruppennamen ein.',
+  'gm.transfer_final': 'Eigentümer übertragen',
 }
 
 const en: Record<string, string> = {
@@ -423,6 +432,10 @@ const en: Record<string, string> = {
   'gm.load_failed': 'Could not load the group.', 'gm.delete_failed': 'Deletion failed.',
   'gm.moderator': 'Moderator', 'gm.member': 'Member',
   'gm.join_code': 'Join code', 'gm.regen': 'Regenerate', 'gm.join_enabled': 'Joining by code allowed',
+  'gm.code_valid_until': 'Code valid through %s',
+  'gm.code_invalid': 'No valid code available anymore.', 'gm.code_generate': 'Generate code',
+  'gm.retention_confirm': 'Really save? All completed results older than %s days will be permanently deleted.',
+  'gm.retention_save': 'Delete & save',
   'gm.default_access': 'Default access for new members:', 'gm.write': 'Write', 'gm.read': 'Read only',
   'gm.members': 'Members (%s)', 'gm.no_name': 'No name', 'gm.you': '(you)', 'gm.remove': 'Remove',
   'gm.retention_title': 'Auto-delete results',
@@ -430,6 +443,11 @@ const en: Record<string, string> = {
   'gm.off': 'off', 'gm.danger_zone': 'Danger zone', 'gm.delete_group': 'Delete group',
   'gm.delete_warn_pre': 'This deletes the group and all its data for every member – irreversibly. Type the name ',
   'gm.delete_warn_post': ' to confirm.', 'gm.delete_final': 'Delete permanently',
+  'gm.delete_confirm1': 'This group and all its shared data will be permanently deleted for every member. Really continue?',
+  'gm.delete_continue': 'Continue',
+  'gm.make_owner': 'Make owner',
+  'gm.transfer_confirm': 'Make %s the owner of this group? You will then only be a moderator. Type the group name to confirm.',
+  'gm.transfer_final': 'Transfer ownership',
 }
 
 const DICT: Record<Lang, Record<string, string>> = { de, en }

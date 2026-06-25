@@ -966,6 +966,7 @@
 {#snippet authForm()}
   {#if step === 'email'}
     <input type="email" inputmode="email" autocomplete="email"
+           autocapitalize="none" autocorrect="off" spellcheck="false"
            bind:value={email} placeholder={t('auth.email_ph')}
            onkeydown={(e) => { if (e.key === 'Enter' && !busy && email.includes('@')) send() }} />
     <button onclick={send} disabled={busy || !email.includes('@')}>{t('auth.send_code')}</button>

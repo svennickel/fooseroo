@@ -5,10 +5,10 @@
   // typed confirmation). Plain members get a read-only roster (names + roles).
   import {
     groupMembers, groupSettings, setMemberRole, setMemberAccess, removeMember,
-    regenerateJoinCode, configureJoin, setResultRetention, deleteGroup,
+    regenerateJoinCode, configureJoin, setResultRetention, deleteGroup, transferOwnership,
     type Member, type GroupSettings
   } from './data'
-  import { t } from './i18n.svelte'
+  import { t, getLang } from './i18n.svelte'
 
   let { groupId, groupName, myUserId, onClose, onChanged }:
     { groupId: string; groupName: string; myUserId: string | null;
@@ -20,8 +20,22 @@
   let busy = $state(false)
   let err = $state('')
   let delConfirm = $state('')   // typed group name to enable deletion
-  let askDelete = $state(false)
+  let delStep = $state(0)       // 0 none · 1 first "are you sure" · 2 type-the-name
+  let transferTarget = $state<Member | null>(null)  // member being promoted to owner
+  let transferConfirm = $state('')                  // typed group name to confirm transfer
   let retDays = $state('')      // retention input (empty = off)
+  let askRetention = $state(false)   // confirm before enabling auto-delete (irreversible)
+
+  // Join-code validity: a code is shown only while present AND not past its expiry;
+  // otherwise we offer to generate a fresh one.
+  const codeExpired = $derived(!!settings?.joinExpiresAt && Date.parse(settings.joinExpiresAt) <= Date.now())
+  const haveCode = $derived(!!settings?.joinCode && !codeExpired)
+  const retNum = $derived(retDays.trim() === '' ? null : (Math.max(1, parseInt(retDays, 10) || 0) || null))
+  function fmtDateTime(iso: string): string {
+    try { return new Date(iso).toLocaleString(getLang() === 'en' ? 'en-GB' : 'de-DE',
+      { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' }) }
+    catch { return iso }
+  }
 
   const myRole = $derived(members.find((m) => m.userId === myUserId)?.role ?? 'member')
   const isOwner = $derived(myRole === 'owner')
@@ -57,11 +71,23 @@
     const v = retDays.trim() === '' ? null : Math.max(1, parseInt(retDays, 10) || 0) || null
     return setResultRetention(groupId, v, v == null ? null : tz)
   })
+  // Turning auto-delete OFF can't delete anything → save straight away. Enabling (or
+  // keeping) a positive cutoff DOES purge older results → confirm first (irreversible).
+  function onSaveRetention() { if (retNum == null) saveRetention(); else askRetention = true }
+  function confirmRetention() { askRetention = false; saveRetention() }
   async function doDelete() {
     if (busy || delConfirm.trim() !== groupName.trim()) return
     busy = true; err = ''
     try { await deleteGroup(groupId); onChanged(); onClose() }
     catch { err = t('gm.delete_failed'); busy = false }
+  }
+  // Hand over ownership (typed-name confirm). On success the roster reloads and my own
+  // role flips to moderator, so the management controls update themselves.
+  async function doTransfer() {
+    const target = transferTarget
+    if (!target || transferConfirm.trim() !== groupName.trim()) return
+    await run(() => transferOwnership(groupId, target.userId))
+    transferTarget = null; transferConfirm = ''
   }
 </script>
 
@@ -82,10 +108,18 @@
         {#if isManager && settings}
           <div class="sec">
             <div class="slabel">{t('gm.join_code')}</div>
-            <div class="coderow">
-              <code class="code">{settings.joinCode ?? '—'}</code>
-              <button class="ghost small" onclick={regen} disabled={busy}>{t('gm.regen')}</button>
-            </div>
+            {#if haveCode}
+              <div class="coderow">
+                <code class="code">{settings.joinCode}</code>
+                <button class="ghost small" onclick={regen} disabled={busy}>{t('gm.regen')}</button>
+              </div>
+              {#if settings.joinExpiresAt}
+                <p class="hint">{t('gm.code_valid_until', fmtDateTime(settings.joinExpiresAt))}</p>
+              {/if}
+            {:else}
+              <p class="hint warn">{t('gm.code_invalid')}</p>
+              <button class="ghost small" onclick={regen} disabled={busy}>{t('gm.code_generate')}</button>
+            {/if}
             <label class="chk">
               <span class="chktxt">{t('gm.join_enabled')}</span>
               <span class="sw"><input type="checkbox" checked={settings.joinEnabled} onchange={toggleEnabled} disabled={busy} /><span class="slider"></span></span>
@@ -120,12 +154,23 @@
                     <option value="read">{t('gm.read')}</option>
                   </select>
                   <button class="ghost small" onclick={() => kick(m)} disabled={busy}>{t('gm.remove')}</button>
+                  {#if isOwner}<button class="ghost small" onclick={() => { transferTarget = m; transferConfirm = '' }} disabled={busy}>{t('gm.make_owner')}</button>{/if}
                 </div>
               {:else}
                 <span class="rtag">{roleLabel(m.role)}</span>
               {/if}
             </div>
           {/each}
+          {#if transferTarget}
+            <div class="confirmbox">
+              <p class="hint warn">{t('gm.transfer_confirm', transferTarget.name || t('gm.no_name'))}</p>
+              <input class="num wide" bind:value={transferConfirm} placeholder={groupName} />
+              <div class="arow">
+                <button class="danger small" onclick={doTransfer} disabled={busy || transferConfirm.trim() !== groupName.trim()}>{t('gm.transfer_final')}</button>
+                <button class="ghost small" onclick={() => { transferTarget = null; transferConfirm = '' }} disabled={busy}>{t('common.cancel')}</button>
+              </div>
+            </div>
+          {/if}
         </div>
 
         <!-- Retention (owner) -->
@@ -134,22 +179,35 @@
             <div class="slabel">{t('gm.retention_title')}</div>
             <p class="hint">{t('gm.retention_hint')}</p>
             <div class="arow">
-              <input class="num" inputmode="numeric" bind:value={retDays} placeholder={t('gm.off')} />
-              <button class="ghost small" onclick={saveRetention} disabled={busy}>{t('common.save')}</button>
+              <input class="num" inputmode="numeric" bind:value={retDays} placeholder={t('gm.off')} disabled={askRetention} />
+              <button class="ghost small" onclick={onSaveRetention} disabled={busy || askRetention}>{t('common.save')}</button>
             </div>
+            {#if askRetention && retNum != null}
+              <p class="hint warn">{t('gm.retention_confirm', retNum)}</p>
+              <div class="arow">
+                <button class="danger small" onclick={confirmRetention} disabled={busy}>{t('gm.retention_save')}</button>
+                <button class="ghost small" onclick={() => (askRetention = false)} disabled={busy}>{t('common.cancel')}</button>
+              </div>
+            {/if}
           </div>
 
           <!-- Danger zone -->
           <div class="sec danger">
             <div class="slabel">{t('gm.danger_zone')}</div>
-            {#if !askDelete}
-              <button class="danger small" onclick={() => { askDelete = true; delConfirm = '' }}>{t('gm.delete_group')}</button>
+            {#if delStep === 0}
+              <button class="danger small" onclick={() => { delStep = 1; delConfirm = '' }}>{t('gm.delete_group')}</button>
+            {:else if delStep === 1}
+              <p class="hint warn">{t('gm.delete_confirm1')}</p>
+              <div class="arow">
+                <button class="danger small" onclick={() => (delStep = 2)}>{t('gm.delete_continue')}</button>
+                <button class="ghost small" onclick={() => (delStep = 0)}>{t('common.cancel')}</button>
+              </div>
             {:else}
               <p class="hint">{t('gm.delete_warn_pre')}<strong>{groupName}</strong>{t('gm.delete_warn_post')}</p>
               <input class="num wide" bind:value={delConfirm} placeholder={groupName} />
               <div class="arow">
                 <button class="danger small" onclick={doDelete} disabled={busy || delConfirm.trim() !== groupName.trim()}>{t('gm.delete_final')}</button>
-                <button class="ghost small" onclick={() => (askDelete = false)}>{t('common.cancel')}</button>
+                <button class="ghost small" onclick={() => { delStep = 0; delConfirm = '' }}>{t('common.cancel')}</button>
               </div>
             {/if}
           </div>
@@ -200,6 +258,9 @@
     background: var(--bg); color: var(--on-surface); font-size: 13px; }
   .num { width: 90px; } .num.wide { width: 100%; box-sizing: border-box; }
   .hint { color: var(--on-surface-variant); font-size: 12px; margin: 0; }
+  .hint.warn { color: var(--warn); font-weight: 600; }
+  .confirmbox { border-top: 1px solid var(--outline); padding-top: 10px;
+    display: flex; flex-direction: column; gap: 8px; }
   .err { color: var(--bad); font-size: 13px; margin: 0; }
   .ghost.small { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 8px; padding: 6px 11px; font-size: 13px; font-weight: 600; cursor: pointer; }
