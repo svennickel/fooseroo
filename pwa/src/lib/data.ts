@@ -278,6 +278,12 @@ export async function removeMember(groupId: string, target: string): Promise<voi
 export async function transferOwnership(groupId: string, target: string): Promise<void> {
   const { error } = await supabase.rpc('transfer_ownership', { g: groupId, target }); if (error) throw error
 }
+// Create a new training group (owner = caller). Returns the new group id.
+export async function createGroup(name: string, tz: string | null): Promise<string> {
+  const { data, error } = await supabase.rpc('create_group', { p_name: name.trim(), p_tz: tz })
+  if (error) throw error
+  return data as string
+}
 export async function regenerateJoinCode(groupId: string): Promise<string | null> {
   const { data, error } = await supabase.rpc('regenerate_join_code', { g: groupId }); if (error) throw error
   return (data as string) ?? null

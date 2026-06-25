@@ -5,7 +5,7 @@
   // confirmation). Full owner admin (members/roles/rename/delete) stays in the app.
   import { requestCode, verifyCode } from './auth'
   import { supabase } from './supabase'
-  import { myGroupName, setGroupDisplayName, leaveGroup, type Group } from './data'
+  import { myGroupName, setGroupDisplayName, leaveGroup, createGroup, type Group } from './data'
   import { t } from './i18n.svelte'
   import GroupManage from './GroupManage.svelte'
 
@@ -30,6 +30,21 @@
   let gMsg = $state<Record<string, string>>({})            // soft per-group hint/error
   let leaveAsk = $state<string | null>(null)               // group pending leave confirmation
   let gBusy = $state<string | null>(null)                  // group with an in-flight action
+  let creating = $state(false)                             // create-group form open
+  let newName = $state('')
+  let createErr = $state('')
+  async function doCreate() {
+    const v = newName.trim()
+    if (!v || gBusy) return
+    gBusy = 'create'; createErr = ''
+    try {
+      const tz = (() => { try { return Intl.DateTimeFormat().resolvedOptions().timeZone || null } catch { return null } })()
+      await createGroup(v, tz)
+      newName = ''; creating = false; onGroupsChanged()
+    } catch (e) {
+      createErr = String((e as Error)?.message ?? '').includes('group_limit') ? t('acc.create_limit') : t('acc.create_failed')
+    } finally { gBusy = null }
+  }
 
   $effect(() => {
     for (const g of groups) if (!(g.id in names)) myGroupName(g.id).then((n) => { names = { ...names, [g.id]: n } })
@@ -164,8 +179,25 @@
             </div>
           {/each}
         {/if}
-        <button class="ghost small" onclick={() => { onClose(); onJoin() }}>{t('join.title')}</button>
-        <p class="hint">{t('acc.full_admin_hint')}</p>
+        {#if signedIn}
+          {#if !creating}
+            <div class="btnrow">
+              <button class="primary" onclick={() => { creating = true; newName = ''; createErr = '' }}>{t('acc.create_group')}</button>
+              <button class="ghost small" onclick={() => { onClose(); onJoin() }}>{t('join.title')}</button>
+            </div>
+          {:else}
+            <input bind:value={newName} maxlength="40" placeholder={t('acc.create_name_ph')}
+                   autocapitalize="sentences" onkeydown={(e) => { if (e.key === 'Enter') doCreate() }} />
+            <p class="hint pricing">{t('acc.create_pricing')}</p>
+            {#if createErr}<p class="err">{createErr}</p>{/if}
+            <div class="btnrow">
+              <button class="primary" onclick={doCreate} disabled={gBusy === 'create' || !newName.trim()}>{t('acc.create_btn')}</button>
+              <button class="ghost small" onclick={() => { creating = false; createErr = '' }}>{t('common.cancel')}</button>
+            </div>
+          {/if}
+        {:else}
+          <button class="ghost small" onclick={() => { onClose(); onJoin() }}>{t('join.title')}</button>
+        {/if}
       </div>
     </div>
   </div>
@@ -196,6 +228,7 @@
   .benefits div { display: flex; flex-direction: column; gap: 1px; }
   .benefits strong { font-size: 14px; }
   .benefits span { font-size: 12px; color: var(--on-surface-variant); }
+  .hint.pricing { background: var(--surface-variant); border-radius: 10px; padding: 10px 12px; line-height: 1.4; }
   .scroll { overflow-y: auto; -webkit-overflow-scrolling: touch; display: flex;
     flex-direction: column; gap: 12px; margin-top: 6px; }
   .acard { background: var(--surface); border: 1px solid var(--outline); border-radius: 14px;
