@@ -72,6 +72,12 @@
   }
   let ready = $state(false)
   let postLoginInfo = $state(false)   // one-time "what's unlocked" info after a fresh sign-in
+  // The bottom nav stays visible under every view (except Settings); overlays reserve
+  // its measured height via the global --navh var so nothing hides behind it.
+  let navH = $state(0)
+  $effect(() => {
+    if (typeof document !== 'undefined') document.documentElement.style.setProperty('--navh', `${navH || 0}px`)
+  })
 
   // Auth form
   let step = $state<'email' | 'code'>('email')
@@ -969,8 +975,8 @@
 <!-- Bottom navigation between Matches & Training — like the native app (the Liga
      area is intentionally absent from the web version). Icons mirror the app's
      ic_matches_24 (plain foosball ring) and ic_mode_24 (history). -->
-{#if signedIn && route.type === 'home' && !selected}
-  <nav class="bottomnav">
+{#if signedIn}
+  <nav class="bottomnav" bind:clientHeight={navH}>
     <button class="navitem" class:active={tab === 'matches'} onclick={() => (tab = 'matches')} aria-label={t('nav.matches')}>
       <span class="naicon"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="currentColor" d="M12,2C6.48,2 2,6.48 2,12s4.48,10 10,10 10,-4.48 10,-10S17.52,2 12,2zM12,20c-4.41,0 -8,-3.59 -8,-8s3.59,-8 8,-8 8,3.59 8,8 -3.59,8 -8,8z"/></svg></span>
       <span class="nalabel">{t('nav.matches')}</span>
@@ -1054,7 +1060,8 @@
     padding: 0 16px calc(96px + env(safe-area-inset-bottom, 0px)); }
   /* Logo + wordmark like the app's branding: large round logo, "Fooseroo" bold in
      the brand blue, same family/colour, similar position. */
-  h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px; }
+  h1 { font-size: 32px; margin: 0 0 4px; display: flex; align-items: center; gap: 12px;
+    flex: 0 1 auto; min-width: 0; overflow: hidden; }
   .logo { width: 48px; height: 48px; border-radius: 50%; }
   .brand { color: var(--team-a); font-weight: 800; letter-spacing: -.3px; }
   /* Top bar with the three-dot overflow menu (top-right), like the app. Sticky at the
@@ -1068,7 +1075,7 @@
     color: var(--on-surface-variant); border-radius: 50%; display: inline-flex; }
   .iconbtn svg { width: 24px; height: 24px; fill: currentColor; }
   .iconbtn:active { background: var(--surface-variant); }
-  .menu-catch { position: fixed; inset: 0; z-index: 60; background: transparent; border: 0; padding: 0; }
+  .menu-catch { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 60; background: transparent; border: 0; padding: 0; }
   .menu { position: absolute; top: calc(100% + 4px); right: 0; z-index: 61; background: var(--surface);
     border: 1px solid var(--outline); border-radius: 12px; box-shadow: 0 6px 24px rgba(0,0,0,.18);
     min-width: 184px; overflow: hidden; }
@@ -1078,17 +1085,18 @@
   .menu button.sel { color: var(--team-a); font-weight: 700; }
   /* iOS: render dropdowns as a bottom action sheet with a dimmed backdrop. */
   .menu-catch.dim { background: rgba(0,0,0,.35); }
-  .menu.sheet { position: fixed; left: 0; right: 0; bottom: 0; top: auto; margin: 0 auto;
+  .menu.sheet { position: fixed; left: 0; right: 0; bottom: var(--navh, 56px); top: auto; margin: 0 auto;
     width: 100%; max-width: 440px; min-width: 0; border-radius: 16px 16px 0 0;
     padding-bottom: calc(6px + env(safe-area-inset-bottom, 0px)); }
   .menu.sheet button { text-align: center; padding: 16px; font-size: 17px; }
   .menu-sep { height: 1px; background: var(--outline); margin: 4px 0; }
   /* Right side of the top bar: context chip ("Dein Konto ▾") + three-dot menu. */
-  .topright { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
-  .ctxwrap { position: relative; }
+  .topright { display: flex; align-items: center; gap: 6px; flex: 0 1 auto; min-width: 0;
+    justify-content: flex-end; }
+  .ctxwrap { position: relative; min-width: 0; flex: 0 1 auto; }
   .ctxchip { background: var(--surface); border: 1px solid var(--outline); border-radius: 999px;
     padding: 7px 12px; font-size: 14px; font-weight: 600; color: var(--on-surface); cursor: pointer;
-    max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     display: inline-flex; align-items: center; gap: 4px; }
   .ctxchip .caret { color: var(--on-surface-variant); }
   .tag { font-size: 12px; background: var(--surface-variant); color: var(--on-surface-variant);
@@ -1138,7 +1146,7 @@
   .bottomnav { position: fixed; bottom: 0; left: 50%; transform: translateX(-50%);
     width: 100%; max-width: 440px; box-sizing: border-box;
     display: flex; justify-content: space-around; align-items: stretch;
-    background: var(--surface); border-top: 1px solid var(--outline); z-index: 50;
+    background: var(--surface); border-top: 1px solid var(--outline); z-index: 990;
     padding: 6px 8px calc(6px + env(safe-area-inset-bottom, 0px)); }
   .navitem { flex: 1; background: transparent; border: 0; cursor: pointer; padding: 4px 0;
     display: flex; flex-direction: column; align-items: center; gap: 3px;
@@ -1202,7 +1210,7 @@
     background: color-mix(in srgb, var(--live) 14%, var(--surface)); border: 1px solid var(--live);
     color: var(--on-surface); text-align: center; }
   /* Post-sign-in welcome (centered card). */
-  .welcome-overlay { position: fixed; inset: 0; z-index: 970; background: rgba(0,0,0,.5);
+  .welcome-overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 970; background: rgba(0,0,0,.5);
     display: flex; align-items: center; justify-content: center; padding: 20px; }
   .welcome { width: 100%; max-width: 380px; background: var(--bg); border-radius: 18px;
     padding: 20px; display: flex; flex-direction: column; gap: 12px; box-shadow: 0 10px 40px rgba(0,0,0,.3); }

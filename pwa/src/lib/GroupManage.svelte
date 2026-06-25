@@ -226,7 +226,7 @@
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; z-index: 950; background: rgba(0,0,0,.45);
+  .overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 950; background: rgba(0,0,0,.45);
     display: flex; align-items: flex-end; justify-content: center; }
   .sheet { width: 100%; max-width: 440px; max-height: 90vh; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column;

@@ -92,11 +92,9 @@
 <div class="overlay" role="presentation">
   <div class="sheet">
     <div class="head">
+      <button class="back" onclick={onClose}>{'‹'} {t('common.back_word')}</button>
       <strong>{view === 'day' ? t('eval.day') : t('eval.person')}</strong>
-      <div class="hbtns">
-        <button class="ghost" onclick={share}>{t('eval.share')}</button>
-        <button class="ghost" onclick={onClose}>{t('common.close')}</button>
-      </div>
+      <button class="ghost" onclick={share}>{t('eval.share')}</button>
     </div>
     {#if copied}<p class="note">{t('eval.copied')}</p>{/if}
 
@@ -154,14 +152,15 @@
 
 <style>
   /* Full-screen like the app's evaluation screens (not a bottom sheet). */
-  .overlay { position: fixed; inset: 0; z-index: 945; background: var(--bg);
+  .overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 945; background: var(--bg);
     display: flex; align-items: stretch; justify-content: center; }
   .sheet { width: 100%; max-width: 480px; height: 100%; overflow-y: auto; background: var(--bg);
     border-radius: 0; display: flex; flex-direction: column; gap: 12px;
     padding: calc(12px + env(safe-area-inset-top, 0px)) 16px calc(16px + env(safe-area-inset-bottom, 0px)); }
-  .head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
-  .head strong { font-size: 17px; }
-  .hbtns { display: flex; gap: 6px; }
+  .head { display: flex; align-items: center; gap: 8px; }
+  .head strong { font-size: 17px; flex: 1; text-align: center; }
+  .back { background: transparent; border: 0; color: var(--team-a); font-size: 15px; font-weight: 700;
+    cursor: pointer; padding: 6px 4px; white-space: nowrap; }
   .sel { align-self: flex-start; background: var(--surface); border: 1px solid var(--team-a); border-radius: 999px;
     padding: 9px 16px; font-size: 14px; font-weight: 700; color: var(--on-surface); cursor: pointer; }
   .sub { margin: 6px 0 0; font-size: 13px; color: var(--on-surface-variant); font-weight: 700; }
@@ -174,7 +173,7 @@
   .ghost { background: transparent; color: var(--team-a); border: 1px solid var(--outline);
     border-radius: 8px; padding: 7px 12px; font-size: 13px; font-weight: 700; cursor: pointer; }
   .ghost.wide { align-self: stretch; padding: 11px; }
-  .picker { position: fixed; inset: 0; z-index: 980; background: rgba(0,0,0,.45);
+  .picker { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 980; background: rgba(0,0,0,.45);
     display: flex; align-items: flex-end; justify-content: center; }
   .psheet { width: 100%; max-width: 440px; max-height: 70vh; overflow-y: auto; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 4px;

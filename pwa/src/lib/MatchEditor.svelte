@@ -380,7 +380,7 @@
 
 <style>
   /* Full-screen like the Android match counter (not a bottom sheet) — it needs the room. */
-  .overlay { position: fixed; inset: 0; z-index: 940; background: var(--bg);
+  .overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 940; background: var(--bg);
     display: flex; align-items: stretch; justify-content: center; }
   .sheet { width: 100%; max-width: 480px; height: 100%; overflow: hidden; background: var(--bg);
     border-radius: 0; display: flex; flex-direction: column; gap: 12px;
@@ -468,7 +468,7 @@
   .danger.small { background: transparent; color: var(--bad); border: 1px solid var(--bad);
     border-radius: 10px; padding: 9px 14px; font-size: 13px; font-weight: 700; cursor: pointer; }
   /* iOS action sheet */
-  .sheetwrap { position: fixed; inset: 0; z-index: 70; display: flex; align-items: flex-end; }
+  .sheetwrap { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 70; display: flex; align-items: flex-end; }
   .sheetbg { position: absolute; inset: 0; background: rgba(0,0,0,.35); border: 0; }
   .actionsheet { position: relative; width: 100%; max-width: 440px; margin: 0 auto;
     display: flex; flex-direction: column; gap: 1px; padding: 8px 8px calc(8px + env(safe-area-inset-bottom, 0px));

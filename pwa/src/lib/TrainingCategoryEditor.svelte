@@ -82,7 +82,7 @@
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; z-index: 970; background: rgba(0,0,0,.5);
+  .overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 970; background: rgba(0,0,0,.5);
     display: flex; align-items: flex-end; justify-content: center; }
   .sheet { width: 100%; max-width: 440px; max-height: 90vh; overflow-y: auto; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 14px;

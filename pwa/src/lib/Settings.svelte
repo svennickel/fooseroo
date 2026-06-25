@@ -89,7 +89,8 @@
 </div>
 
 <style>
-  .overlay { position: fixed; inset: 0; z-index: 900; background: rgba(0,0,0,.45);
+  /* Settings is the ONE dialog that fully covers the bottom nav → above it (z 1001). */
+  .overlay { position: fixed; inset: 0; z-index: 1001; background: rgba(0,0,0,.45);
     display: flex; align-items: flex-end; justify-content: center; }
   .sheet { width: 100%; max-width: 440px; max-height: 86vh; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column;

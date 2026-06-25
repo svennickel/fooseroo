@@ -274,7 +274,7 @@
 <style>
   /* Full-screen like the app's recording screen (not a bottom sheet): chips on top,
      chart + list scroll in the middle, the countdown/buttons sit at the bottom. */
-  .overlay { position: fixed; inset: 0; z-index: 940; background: var(--bg);
+  .overlay { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 940; background: var(--bg);
     display: flex; align-items: stretch; justify-content: center; }
   .sheet { width: 100%; max-width: 480px; height: 100%; overflow: hidden; background: var(--bg);
     display: flex; flex-direction: column; gap: 10px;
@@ -322,7 +322,7 @@
   .note { color: var(--ok); font-weight: 700; text-align: center; margin: 0; }
   .err { color: var(--bad); font-size: 13px; margin: 0; text-align: center; }
   /* day picker (bottom sheet — small, like the app's date picker) */
-  .daypick { position: fixed; inset: 0; z-index: 980; background: rgba(0,0,0,.45);
+  .daypick { position: fixed; inset: 0 0 var(--navh, 56px) 0; z-index: 980; background: rgba(0,0,0,.45);
     display: flex; align-items: flex-end; justify-content: center; }
   .dsheet { width: 100%; max-width: 440px; max-height: 70vh; overflow-y: auto; background: var(--bg);
     border-radius: 18px 18px 0 0; display: flex; flex-direction: column; gap: 4px;
